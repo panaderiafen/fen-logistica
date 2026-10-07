@@ -20,7 +20,7 @@ La app con la que la encargada de logística registra las órdenes B2B. Guarda d
 ## Archivos y dónde va cada uno
 ```
 index.html, estilos.css, app.js, modelo.js, pdf.js, firebase.js   → GitHub, repo NUEVO fen-logistica (raíz)
-config.js        → GitHub (raíz). Antes de subirlo, pega aquí la configuración de fen-b2b (ver paso 3)
+config.js        → GitHub (raíz). Ya trae la configuración de fen-b2b
 logo-fen.png, logo-orden.png                                      → GitHub (raíz)
 README.md        → GitHub (respaldo)
 ```
@@ -29,18 +29,7 @@ No hay claves secretas: la configuración de Firebase solo dice cuál es el proy
 ## Instalación (unos 10 minutos)
 1. En GitHub, cuenta **panaderiafen** → **New repository** → nombre `fen-logistica` → **Public** → Create.
 2. **Add file → Upload files**: sube todos los archivos del zip (sin la carpeta) → Commit.
-3. Abre `config.js` en GitHub → lápiz (editar). En la línea `firebase: null,` reemplaza `null` por el bloque de fen-b2b, **solo lo que va entre llaves**, así:
-   ```js
-   firebase: {
-     apiKey: "…",
-     authDomain: "fen-b2b.firebaseapp.com",
-     projectId: "fen-b2b",
-     storageBucket: "…",
-     messagingSenderId: "…",
-     appId: "…"
-   },
-   ```
-   (Ojo con la coma final después de `}`.) → **Commit changes**.
+3. `config.js` ya trae la configuración de fen-b2b: no hay que editar nada.
 4. **Settings → Pages** → Source: **Deploy from a branch** → Branch **main**, carpeta **/ (root)** → Save. En 1 o 2 minutos queda en `https://panaderiafen.github.io/fen-logistica/`.
 
 ## La cuenta de la encargada (una sola vez)
@@ -59,5 +48,5 @@ No hay claves secretas: la configuración de Firebase solo dice cuál es el proy
 ## Si algo sale mal
 - **"Esta cuenta no tiene acceso"**: falta el documento `logistica/{UID}` (paso 2 de la cuenta) o el UID no es el mismo.
 - **"La base no dejó guardar (permiso)"**: revisa que estén publicadas las reglas de fen-b2b **v1.1.0**.
-- **Pantalla en blanco**: revisa `config.js` (las comillas y la coma después de `}`).
+- **Pantalla en blanco**: recarga con la caché vacía (Ctrl + Shift + R); si sigue, avísame.
 - Para volver a la app de siempre: Emmanuel, en Sistema Fën → Ventas B2B → Base nueva → **Volver a la app antigua**.
