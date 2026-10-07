@@ -5,10 +5,10 @@
 // ═══════════════════════════════════════════════
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
-  collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, serverTimestamp
-} from './firebase.js?v=1.0.1';
-import * as M from './modelo.js?v=1.0.1';
-import * as Pdf from './pdf.js?v=1.0.1';
+  collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
+} from './firebase.js?v=1.1.0';
+import * as M from './modelo.js?v=1.1.0';
+import * as Pdf from './pdf.js?v=1.1.0';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -97,7 +97,8 @@ function escuchar() {
   E.escuchas.push(onSnapshot(query(collection(db, 'ordenes'), where('sinFolio', '==', true)), juntar('sinFolio'), err));
   E.escuchas.push(onSnapshot(query(collection(db, 'solicitudes'), where('por', '==', E.user.email)), sn => {
     E.solicitudes = sn.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => ((b.en && b.en.toMillis && b.en.toMillis()) || 0) - ((a.en && a.en.toMillis && a.en.toMillis()) || 0));
-    refrescar('solicitudes');
+    refrescar('solicitudes'); if (vistaDesdeHash() === 'ordenes') pintarOrdenes();
+    pintarRespuestas();
   }, err));
 }
 function refrescar(v) {
@@ -114,6 +115,19 @@ function pintarAvisoModo() {
   if (E.cfg.activa) { a.classList.add('oculto'); return; }
   a.textContent = 'Todavía se usa la app B2B de siempre. Esta app se activa cuando Emmanuel cambie a la base nueva (desde Sistema Fën). Mientras tanto puedes mirar, pero no crear órdenes.';
   a.classList.remove('oculto');
+}
+
+// ── Respuestas a sus solicitudes: un aviso arriba hasta que presiona "Entendido" ──
+function pintarRespuestas() {
+  const el = $('respuestas'); if (!el) return;
+  const nuevas = E.solicitudes.filter(s => (s.estado === 'aprobada' || s.estado === 'rechazada') && !s.vista);
+  const que = s => s.tipo === 'anulacion' ? `la anulación de la orden N° ${esc(s.n)}` : s.tipo === 'precio' ? `el precio de ${esc(s.producto)} para ${esc(s.cliente)}${s.precioAprobado ? ' (' + pesos(s.precioAprobado) + ')' : ''}` : `el producto nuevo ${esc(s.producto)}${s.precioAprobado ? ' (' + pesos(s.precioAprobado) + ')' : ''}`;
+  el.innerHTML = nuevas.map(s => `<div class="respuesta ${s.estado === 'aprobada' ? 'c-verde' : 'c-rojo'}" role="status"><div><b>${s.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}:</b> ${que(s)}${s.respuesta && s.respuesta !== 'Anulada' ? ` · <i>"${esc(s.respuesta)}"</i>` : ''}</div><button type="button" class="btn-sec btn-chico" data-visto="${esc(s.id)}">Entendido</button></div>`).join('');
+  el.querySelectorAll('[data-visto]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await updateDoc(doc(db, 'solicitudes', b.dataset.visto), { vista: true, vistaEn: serverTimestamp() }); }
+    catch (e) { b.disabled = false; avisar(mensajeError(e), true); }
+  }));
 }
 
 // ── Copia a la planilla (por detrás) ───────────────
@@ -308,11 +322,23 @@ function pintarOrdenes() {
     <div class="tarjeta" id="o-lista">${lista.map(o => `<details class="orden" data-n="${o.n}"><summary><div class="txt"><b>N° ${o.n} · ${esc(o.cliente)}</b><span>${diaCorto(o.fecha)} · ${pesos(o.total)} · ${(o.lineas || []).length} ${(o.lineas || []).length === 1 ? 'producto' : 'productos'}</span></div><div class="chips">${chips(o)}</div></summary>
       <table class="tabla"><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Neto</th></tr></thead><tbody>${(o.lineas || []).map(l => `<tr><td>${esc(l.producto)}</td><td class="num">${l.cantidad}</td><td class="num">${pesos(l.precio)}</td><td class="num">${pesos(l.neto)}</td></tr>`).join('')}</tbody></table>
       <p class="ayuda" style="margin:8px 0">Neto ${pesos(o.neto)} · IVA ${pesos(o.iva)} · <b>Total ${pesos(o.total)}</b>${o.obs ? ' · ' + esc(o.obs) : ''}${o.editada ? ` · editada ${o.editada.veces} ${o.editada.veces === 1 ? 'vez' : 'veces'}` : ''}</p>
-      <div class="botones" style="padding-bottom:12px"><button type="button" class="btn-sec" data-pdf="${o.n}">Descargar PDF</button>${M.editable(o) && E.cfg.activa ? `<button type="button" class="btn-sec" data-editar="${o.n}">Editar</button>` : ''}</div>
+      ${o.estado === 'anulada' ? `<p class="ayuda" style="margin:0 0 8px;color:var(--rojo-t)"><b>Anulada</b>${o.anulada && o.anulada.motivo ? ': ' + esc(o.anulada.motivo) : ''}</p>` : ''}
+      <div class="botones" style="padding-bottom:12px"><button type="button" class="btn-sec" data-pdf="${o.n}">${o.estado === 'anulada' ? 'PDF (marcado ANULADA)' : 'Descargar PDF'}</button>${M.editable(o) && E.cfg.activa ? `<button type="button" class="btn-sec" data-editar="${o.n}">Editar</button>` : ''}${o.estado !== 'anulada' && E.cfg.activa ? (anulacionPedida(o.n) ? '<span class="chip c-amarillo" style="align-self:center">Anulación pedida</span>' : `<button type="button" class="btn-sec btn-peligro" data-pedir-anular="${o.n}">Solicitar anulación</button>`) : ''}</div>
     </details>`).join('') || '<div class="vacio">No hay órdenes con eso.</div>'}</div>`;
   $('o-buscar').addEventListener('input', e => { E.filtro = e.target.value; const p = e.target.selectionStart; pintarOrdenes(); const i = $('o-buscar'); i.focus(); i.setSelectionRange(p, p); });
   $('o-sinfolio').addEventListener('change', e => { E.soloSinFolio = e.target.checked; pintarOrdenes(); });
   document.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => editar(E.ordenes.get(b.dataset.editar))));
+  document.querySelectorAll('[data-pedir-anular]').forEach(b => b.addEventListener('click', async () => {
+    const o = E.ordenes.get(b.dataset.pedirAnular);
+    const motivo = (prompt(`Solicitar anulación de la orden N° ${o.n} (${o.cliente}, ${pesos(o.total)}).\n\n¿Por qué se anula?`) || '').trim();
+    if (!motivo) return;
+    if (motivo.length < 3) { avisar('Escribe un motivo un poco más claro.', true); return; }
+    b.disabled = true;
+    try {
+      await addDoc(collection(db, 'solicitudes'), { tipo: 'anulacion', n: o.n, clienteId: o.clienteId || null, cliente: o.cliente, productoId: null, producto: `Orden N° ${o.n}`, precio: o.total, nota: motivo, estado: 'pendiente', por: E.user.email, en: serverTimestamp(), respuesta: null });
+      avisar('Anulación solicitada: le llega a Emmanuel');
+    } catch (e) { avisar(mensajeError(e), true); b.disabled = false; }
+  }));
   document.querySelectorAll('[data-pdf]').forEach(b => b.addEventListener('click', async () => {
     const o = E.ordenes.get(b.dataset.pdf), cli = cliente(o.clienteId) || { nombre: o.cliente };
     b.disabled = true; b.textContent = 'Generando…';
@@ -325,6 +351,7 @@ function pintarOrdenes() {
   }));
 }
 
+const anulacionPedida = n => E.solicitudes.some(s => s.tipo === 'anulacion' && s.n === Number(n) && s.estado === 'pendiente');
 // ── Solicitudes ────────────────────────────────────
 async function cargarRecetas() {
   if (E.recetas) return E.recetas;
@@ -354,7 +381,7 @@ function pintarSolicitudes() {
       <button type="button" class="btn" id="s-enviar">Enviar solicitud</button>
     </div>
     <h2>Mis solicitudes</h2>
-    <div class="tarjeta">${E.solicitudes.map(x => `<div class="orden" style="padding:10px 0"><div class="txt" style="display:flex;justify-content:space-between;gap:8px"><div><b>${x.tipo === 'precio' ? 'Precio' : 'Producto nuevo'}: ${esc(x.producto)}</b><br><span class="ayuda">${x.cliente ? esc(x.cliente) + ' · ' : ''}${pesos(x.precio)}${x.nota ? ' · ' + esc(x.nota) : ''}</span>${x.respuesta ? `<br><span class="ayuda"><b>Respuesta:</b> ${esc(x.respuesta)}</span>` : ''}</div><div>${estadoChip(x)}</div></div></div>`).join('') || '<div class="vacio">Todavía no has enviado solicitudes.</div>'}</div>`;
+    <div class="tarjeta">${E.solicitudes.map(x => `<div class="orden" style="padding:10px 0"><div class="txt" style="display:flex;justify-content:space-between;gap:8px"><div><b>${x.tipo === 'precio' ? 'Precio: ' + esc(x.producto) : x.tipo === 'anulacion' ? 'Anular orden N° ' + esc(x.n) : 'Producto nuevo: ' + esc(x.producto)}</b><br><span class="ayuda">${x.cliente ? esc(x.cliente) + ' · ' : ''}${pesos(x.precio)}${x.nota ? ' · ' + esc(x.nota) : ''}</span>${x.respuesta ? `<br><span class="ayuda"><b>Respuesta:</b> ${esc(x.respuesta)}</span>` : ''}</div><div>${estadoChip(x)}</div></div></div>`).join('') || '<div class="vacio">Todavía no has enviado solicitudes.</div>'}</div>`;
   document.querySelectorAll('[data-tipo]').forEach(b => b.addEventListener('click', () => { s.tipo = b.dataset.tipo; pintarSolicitudes(); }));
   $('s-cliente').addEventListener('change', e => { s.clienteId = e.target.value; });
   if ($('s-producto')) $('s-producto').addEventListener('change', e => { s.productoId = e.target.value; });

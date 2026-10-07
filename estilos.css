@@ -87,3 +87,7 @@ h2 { font-size: 16px; }
 .flotante { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 9; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: 12px; background: var(--texto); color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 .flotante.mal { background: var(--rojo-t); }
 @media (min-width: 720px) { .barra-inf { position: sticky; top: 61px; bottom: auto; max-width: 760px; margin: 0 auto; border: 1px solid var(--linea); border-radius: 0 0 14px 14px; } main { padding-bottom: 32px; } .flotante { bottom: 24px; } }
+.respuestas { display: flex; flex-direction: column; gap: 8px; margin: 12px 16px 0; }
+.respuestas:empty { display: none; }
+.respuesta { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.45; max-width: 728px; width: 100%; margin: 0 auto; }
+.respuesta .btn-sec { flex: none; }

@@ -3,7 +3,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, serverTimestamp
+  collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app = initializeApp(window.FEN_LOG.firebase, 'fen-logistica');
@@ -14,4 +14,4 @@ try { db0 = initializeFirestore(app, { localCache: persistentLocalCache({ tabMan
 catch (e) { db0 = initializeFirestore(app, {}); }
 export const db = db0;
 export { onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
-  collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, serverTimestamp };
+  collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp };
