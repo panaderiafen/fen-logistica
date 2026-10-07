@@ -21,14 +21,24 @@ const fechaES = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || ''); retur
 // orden: { n, fecha, lineas, neto, iva, total, obs, folio, estadoPago }, cliente: { nombre, razonSocial, rut, direccion }
 // originales: { producto: cantidad antes de editar } · ediciones: [{ fecha, motivo, resumen }]
 export function html(orden, cliente, originales = {}, ediciones = []) {
-  const E = window.FEN_LOG.DATOS_EMPRESA;
+  const E = (window.FEN_LOG || window.FEN_SIS).DATOS_EMPRESA;
   const num = String(orden.n).padStart(4, '0');
+  // El cambio se compara por producto (total de sus líneas) y se muestra una vez, en su primera línea
+  const ahora = {}, vistos = new Set();
+  (orden.lineas || []).forEach(l => { ahora[l.producto] = (ahora[l.producto] || 0) + l.cantidad; });
+  const marca = (antes, despues) => {
+    if (typeof antes === 'undefined' || antes === despues) return null;
+    return { cant: `<span style="text-decoration:line-through;color:#999">${antes}</span> &rarr; <strong>${despues}</strong>`,
+      nota: `<div style="font-size:9px;color:${despues < antes ? '#c0392b' : '#1D9E75'};margin-top:2px">&#8618; ${despues < antes ? 'Devuelto' : 'Agregado'}: ${Math.abs(antes - despues)} unid.</div>` };
+  };
   const filas = (orden.lineas || []).map(l => {
-    const o = originales[l.producto], cambio = typeof o !== 'undefined' && o !== l.cantidad;
-    const cant = cambio ? `<span style="text-decoration:line-through;color:#999">${o}</span> &rarr; <strong>${l.cantidad}</strong>` : l.cantidad;
-    const nota = cambio ? `<div style="font-size:9px;color:${l.cantidad < o ? '#c0392b' : '#1D9E75'};margin-top:2px">&#8618; ${l.cantidad < o ? 'Devuelto' : 'Agregado'}: ${Math.abs(o - l.cantidad)} unid.</div>` : '';
-    return `<tr><td>${esc(l.producto)}${nota}</td><td style="text-align:center">${cant}</td><td style="text-align:right">${clp(l.precio)}</td><td style="text-align:right">${clp(l.neto)}</td></tr>`;
-  }).join('');
+    const primera = !vistos.has(l.producto); vistos.add(l.producto);
+    const unica = (orden.lineas || []).filter(x => x.producto === l.producto).length === 1;
+    const m = primera ? marca(originales[l.producto], ahora[l.producto]) : null;
+    const cant = m ? (unica ? m.cant : `${l.cantidad}`) : l.cantidad;
+    return `<tr><td>${esc(l.producto)}${m ? m.nota : ''}</td><td style="text-align:center">${cant}</td><td style="text-align:right">${clp(l.precio)}</td><td style="text-align:right">${clp(l.neto)}</td></tr>`;
+  }).join('') + Object.keys(originales).filter(p => !(p in ahora) && originales[p] > 0).map(p =>
+    `<tr><td style="color:#999">${esc(p)}<div style="font-size:9px;color:#c0392b;margin-top:2px">&#8618; Devuelto: ${originales[p]} unid.</div></td><td style="text-align:center"><span style="text-decoration:line-through;color:#999">${originales[p]}</span> &rarr; <strong>0</strong></td><td></td><td style="text-align:right">$0</td></tr>`).join('');
   return `<div class="od">
   <div class="od-cab"><img class="od-logo" src="logo-orden.png" alt="Fën">
     <div class="od-tit"><div class="od-t1">Orden de Venta</div><div class="od-t2">N° ${num}</div><div class="od-info">${esc(E.direccion)}<br>${esc(E.telefono)}<br>${esc(E.correo)}</div></div></div>
@@ -62,28 +72,37 @@ const CSS = `.od{width:720px;padding:40px 48px;background:#fff;color:#1a1a2e;fon
 .od-pie strong{color:#003a79}.od-nota{font-size:10px;color:#999;margin-top:18px;text-align:center;font-family:Arial,sans-serif}`;
 
 // Arma el PDF (tamaño carta) y lo descarga. Si el contenido es más alto que una hoja, sigue en la siguiente.
-export async function descargar(orden, cliente, originales, ediciones) {
+// abrir: true → se muestra en otra pestaña (para revisar) en vez de descargarse
+export async function descargar(orden, cliente, originales, ediciones, abrir) {
+  const ventana = abrir ? window.open('', '_blank') : null;
+  if (ventana) ventana.document.write('<p style="font-family:sans-serif;padding:24px">Generando el PDF…</p>');
   await Promise.all([script(CDN.h2c), script(CDN.jspdf)]);
   const caja = document.createElement('div');
   caja.style.cssText = 'position:absolute;top:0;left:-99999px;width:720px;z-index:-1';
-  caja.innerHTML = `<style>${CSS}</style>` + html(orden, cliente, originales, ediciones);
+  caja.innerHTML = `<style>${CSS}</style>` + html(orden, cliente, originales || {}, ediciones || []);
   document.body.appendChild(caja);
   try {
     const img = caja.querySelector('.od-logo');
     if (img && !img.complete) await new Promise(r => { img.onload = img.onerror = r; setTimeout(r, 4000); });
     const canvas = await window.html2canvas(caja.querySelector('.od'), { scale: 2, backgroundColor: '#ffffff', width: 720, windowWidth: 720 });
     const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
-    const margen = 36, anchoUtil = 612 - margen * 2, altoUtil = 792 - margen * 2, escala = anchoUtil / canvas.width;
+    const margen = 36, anchoUtil = 612 - margen * 2, altoUtil = 792 - margen * 2;
+    let escala = anchoUtil / canvas.width;
+    // Si se pasa por poco de una hoja, se achica un poco para que quepa en una (sin hoja en blanco)
+    if (canvas.height * escala > altoUtil && canvas.height * escala <= altoUtil * 1.3) escala = altoUtil / canvas.height;
     const altoFranja = Math.max(50, Math.floor(altoUtil / escala));
     for (let y = 0, pag = 0; y < canvas.height; y += altoFranja, pag++) {
       const alto = Math.min(altoFranja, canvas.height - y);
+      if (pag && alto < 40) break;   // un resto mínimo (solo margen) no hace otra hoja
       const c = document.createElement('canvas'); c.width = canvas.width; c.height = alto;
       c.getContext('2d').drawImage(canvas, 0, y, canvas.width, alto, 0, 0, canvas.width, alto);
       if (pag) pdf.addPage();
-      pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', margen, margen, anchoUtil, alto * escala);
+      pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', margen + (anchoUtil - canvas.width * escala) / 2, margen, canvas.width * escala, alto * escala);
     }
     const nombre = 'Orden_' + String(orden.n).padStart(4, '0') + '_' + String(cliente.nombre || orden.cliente || 'cliente').replace(/[^a-zA-Z0-9]+/g, '_') + '.pdf';
+    if (ventana) { ventana.location.href = pdf.output('bloburl'); return nombre; }
     pdf.save(nombre);
     return nombre;
-  } finally { caja.remove(); }
+  } catch (e) { if (ventana) ventana.close(); throw e; }
+  finally { caja.remove(); }
 }

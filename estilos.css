@@ -20,9 +20,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .form-entrada { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
 .form-entrada h1 { margin: 0; font-size: 22px; }
 .campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.campo label { font-size: 13px; font-weight: 700; }
-.campo input, .campo select, .campo textarea { min-height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--borde); background: #fff; font-weight: 500; width: 100%; min-width: 0; }
-.campo textarea { padding: 10px 12px; min-height: 70px; resize: vertical; }
+.campo label { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 18px; }
+.campo input, .campo select, .campo textarea { height: 46px; min-height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--borde); background-color: #fff; font-weight: 500; font-size: 16px; width: 100%; min-width: 0; margin: 0;
+  -webkit-appearance: none; appearance: none; box-sizing: border-box; line-height: normal; }
+/* Todos los campos iguales en el iPhone: el selector con su flecha, la fecha alineada a la izquierda */
+.campo select { padding-right: 34px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23626C66' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.campo input[type="date"] { display: flex; align-items: center; text-align: left; }
+.campo input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.campo input[type="date"]::-webkit-calendar-picker-indicator { opacity: .6; }
+.campo textarea { padding: 10px 12px; height: auto; min-height: 70px; resize: vertical; }
 input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 .ayuda { margin: 0; font-size: 12px; line-height: 1.5; color: var(--suave); }
 .error { min-height: 18px; font-size: 13px; font-weight: 600; color: var(--rojo-t); }
@@ -33,7 +39,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .btn-sec { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--linea); background: var(--tarjeta); font-weight: 700; font-size: 13px; cursor: pointer; }
 .btn-chico { min-height: 36px; padding: 0 12px; font-size: 13px; }
 .btn-ancho { width: 100%; }
-.btn-quitar { width: 40px; min-height: 40px; border-radius: 10px; border: 1px solid var(--linea); background: var(--tarjeta); font-size: 18px; cursor: pointer; color: var(--rojo-t); flex: none; }
+.btn-quitar { width: 46px; height: 46px; min-height: 46px; border-radius: 10px; border: 1px solid var(--linea); background: var(--tarjeta); font-size: 18px; cursor: pointer; color: var(--rojo-t); flex: none; }
 .botones { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .barra-sup { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--tarjeta); border-bottom: 1px solid var(--linea); }
@@ -50,8 +56,8 @@ h2 { font-size: 16px; }
 .barra-inf a { flex: 1; text-align: center; padding: 14px 4px; font-size: 13px; font-weight: 700; color: var(--suave); text-decoration: none; }
 .barra-inf a[aria-current="page"] { color: var(--acento); box-shadow: inset 0 3px 0 var(--acento); }
 
-.fila2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.linea-orden { display: grid; grid-template-columns: 1fr 84px 40px; gap: 8px; align-items: end; padding: 10px 0; border-top: 1px solid var(--linea); }
+.fila2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+.linea-orden { display: grid; grid-template-columns: minmax(0, 1fr) 84px 46px; gap: 8px; align-items: end; padding: 10px 0; border-top: 1px solid var(--linea); }
 .linea-orden:first-child { border-top: 0; }
 .linea-orden .precio { grid-column: 1 / -1; font-size: 12px; color: var(--suave); margin-top: -2px; }
 .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }

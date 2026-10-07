@@ -5,7 +5,7 @@
 //  la cuenta de la persona (logistica/{uid}).
 // ═══════════════════════════════════════════════
 window.FEN_LOG = {
-  VERSION: '1.0.0',
+  VERSION: '1.0.1',
   // Proyecto fen-b2b (no es secreto: solo dice cuál es el proyecto)
   firebase: {
     apiKey: 'AIzaSyAXp78b1DrjbBZnWRWsjC0MkuPWBaUm32A',

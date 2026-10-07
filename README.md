@@ -1,8 +1,15 @@
-# fën · Órdenes B2B (logística) · v1.0.0
+# fën · Órdenes B2B (logística) · v1.0.1
 
 **App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 6 de octubre de 2026
 
 La app con la que la encargada de logística registra las órdenes B2B. Guarda directo en la base nueva (Firebase **fen-b2b**), así que es rápida y todo se ve en vivo. La planilla recibe una copia automática.
+
+## Novedades de la v1.0.1
+- **Mismo producto en dos líneas** (por ejemplo, se agrega Croissant XL otra vez al editar): al guardar queda en **una sola línea** con las cantidades sumadas.
+- **PDF de una orden editada:** el cambio se compara por producto (antes "20 → 2 · devuelto 18"; ahora "20 → 22 · agregado 2"). Un producto que se quitó también aparece, con "devuelto". Si cabe, sale en **una sola hoja** (sin la hoja en blanco).
+- **Casillas parejas en el iPhone:** fecha, cliente, producto y cantidad con el mismo alto y alineados; ya no hace zoom al escribir.
+
+Archivos: cambian todos (versión); sube todos reemplazando.
 
 ## Qué hace
 | Sección | Qué hace |

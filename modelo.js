@@ -19,6 +19,22 @@ export function linea(producto, cantidad, precio) {
   const neto = c * p, iva = Math.round(neto * 0.19);
   return { producto: producto.nombre, productoId: producto.id || null, cantidad: c, precio: p, neto, iva, total: neto + iva };
 }
+// Un mismo producto en dos líneas (con el mismo precio) queda en una sola, con las cantidades sumadas
+export function juntarLineas(lineas) {
+  const out = [];
+  lineas.forEach(l => {
+    const ya = out.find(x => x.precio === l.precio && ((x.productoId && x.productoId === l.productoId) || clave(x.producto) === clave(l.producto)));
+    if (!ya) { out.push({ ...l }); return; }
+    ya.cantidad += l.cantidad; ya.neto = ya.cantidad * ya.precio; ya.iva = Math.round(ya.neto * 0.19); ya.total = ya.neto + ya.iva;
+  });
+  return out;
+}
+// Cantidades antes de la primera edición (para el PDF: tachado → nuevo), sacadas del historial
+export function originalesDe(ediciones) {
+  const e = (ediciones || []).slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))[0];
+  if (!e) return {};
+  try { return cantidades({ lineas: JSON.parse(e.cambios || '{}').antes || [] }); } catch (x) { return {}; }
+}
 // Totales como addOrden: IVA del total redondeado una vez
 export function totales(lineas) {
   const neto = lineas.reduce((s, l) => s + l.neto, 0), iva = Math.round(neto * 0.19);

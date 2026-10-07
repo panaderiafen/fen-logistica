@@ -6,9 +6,9 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, serverTimestamp
-} from './firebase.js?v=1.0.0';
-import * as M from './modelo.js?v=1.0.0';
-import * as Pdf from './pdf.js?v=1.0.0';
+} from './firebase.js?v=1.0.1';
+import * as M from './modelo.js?v=1.0.1';
+import * as Pdf from './pdf.js?v=1.0.1';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -154,12 +154,12 @@ const producto = id => E.productos.find(p => p.id === id);
 function formVacio() { return { editando: null, fecha: M.hoy(), clienteId: '', lineas: [{ productoId: '', cantidad: '' }], obs: '', motivo: '', tocado: false }; }
 function lineasDelForm() {
   const f = E.form, cli = cliente(f.clienteId);
-  return f.lineas.filter(l => l.productoId && Number(l.cantidad) > 0).map(l => {
+  return M.juntarLineas(f.lineas.filter(l => l.productoId && Number(l.cantidad) > 0).map(l => {
     const p = producto(l.productoId) || { id: null, nombre: l.nombre || l.productoId, precioBase: l.precio };
     // Al editar, una línea que ya estaba mantiene su precio; las nuevas toman el de la lista
     const precio = l.precioFijo != null ? l.precioFijo : M.precioPara(cli, p).precio;
     return M.linea(p, l.cantidad, precio);
-  });
+  }));
 }
 function pintarNueva() {
   if (!E.form) E.form = formVacio();
@@ -270,7 +270,13 @@ async function guardarEdicion(f, cli, lineas) {
   avisar(`Orden N° ${n} actualizada`);
   location.hash = '#ordenes';
   pasarAPlanilla();
-  try { await Pdf.descargar(r.nueva, cli, r.originales, [{ fecha: M.ahoraTexto(), motivo: f.motivo.trim(), resumen: r.resumen }]); } catch (e) { avisar(`Orden actualizada. El PDF no se pudo hacer (${e.message}).`, true); }
+  try {
+    let eds = [];
+    try { eds = (await getDocs(query(collection(db, 'ediciones'), where('n', '==', n)))).docs.map(d => d.data()).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))); } catch (e) {}
+    if (!eds.length) eds = [{ fecha: M.ahoraTexto(), motivo: f.motivo.trim(), resumen: r.resumen }];
+    const orig = M.originalesDe(eds);
+    await Pdf.descargar(r.nueva, cli, Object.keys(orig).length ? orig : r.originales, eds);
+  } catch (e) { avisar(`Orden actualizada. El PDF no se pudo hacer (${e.message}).`, true); }
 }
 function editar(o) {
   E.form = { editando: { n: o.n }, fecha: o.fecha, clienteId: o.clienteId || '', obs: o.obs || '', motivo: '', tocado: true,
@@ -313,7 +319,7 @@ function pintarOrdenes() {
     try {
       let eds = [];
       if (o.editada) eds = (await getDocs(query(collection(db, 'ediciones'), where('n', '==', o.n)))).docs.map(d => d.data()).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
-      await Pdf.descargar(o, cli, {}, eds);
+      await Pdf.descargar(o, cli, M.originalesDe(eds), eds);
     } catch (e) { avisar('No se pudo hacer el PDF: ' + e.message, true); }
     b.disabled = false; b.textContent = 'Descargar PDF';
   }));
