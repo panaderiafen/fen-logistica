@@ -77,7 +77,8 @@ const CSS = `.od{width:720px;padding:40px 48px;background:#fff;color:#1a1a2e;fon
 
 // Arma el PDF (tamaño carta) y lo descarga. Si el contenido es más alto que una hoja, sigue en la siguiente.
 // abrir: true → se muestra en otra pestaña (para revisar) en vez de descargarse
-export async function descargar(orden, cliente, originales, ediciones, abrir) {
+// comoArchivo: true → no descarga; devuelve { blob, nombre } (para compartir por WhatsApp)
+export async function descargar(orden, cliente, originales, ediciones, abrir, comoArchivo) {
   const ventana = abrir ? window.open('', '_blank') : null;
   if (ventana) ventana.document.write('<p style="font-family:sans-serif;padding:24px">Generando el PDF…</p>');
   await Promise.all([script(CDN.h2c), script(CDN.jspdf)]);
@@ -104,6 +105,7 @@ export async function descargar(orden, cliente, originales, ediciones, abrir) {
       pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', margen + (anchoUtil - canvas.width * escala) / 2, margen, canvas.width * escala, alto * escala);
     }
     const nombre = (orden.estado === 'anulada' ? 'ANULADA_' : '') + 'Orden_' + String(orden.n).padStart(4, '0') + '_' + String(cliente.nombre || orden.cliente || 'cliente').replace(/[^a-zA-Z0-9]+/g, '_') + '.pdf';
+    if (comoArchivo) return { blob: pdf.output('blob'), nombre };
     if (ventana) { ventana.location.href = pdf.output('bloburl'); return nombre; }
     pdf.save(nombre);
     return nombre;

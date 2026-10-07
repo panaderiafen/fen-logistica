@@ -6,9 +6,9 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.1.1';
-import * as M from './modelo.js?v=1.1.1';
-import * as Pdf from './pdf.js?v=1.1.1';
+} from './firebase.js?v=1.2.0';
+import * as M from './modelo.js?v=1.2.0';
+import * as Pdf from './pdf.js?v=1.2.0';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -323,7 +323,7 @@ function pintarOrdenes() {
       <table class="tabla"><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Neto</th></tr></thead><tbody>${(o.lineas || []).map(l => `<tr><td>${esc(l.producto)}</td><td class="num">${l.cantidad}</td><td class="num">${pesos(l.precio)}</td><td class="num">${pesos(l.neto)}</td></tr>`).join('')}</tbody></table>
       <p class="ayuda" style="margin:8px 0">Neto ${pesos(o.neto)} · IVA ${pesos(o.iva)} · <b>Total ${pesos(o.total)}</b>${o.obs ? ' · ' + esc(o.obs) : ''}${o.editada ? ` · editada ${o.editada.veces} ${o.editada.veces === 1 ? 'vez' : 'veces'}` : ''}</p>
       ${o.estado === 'anulada' ? `<p class="ayuda" style="margin:0 0 8px;color:var(--rojo-t)"><b>Anulada</b>${o.anulada && o.anulada.motivo ? ': ' + esc(o.anulada.motivo) : ''}</p>` : ''}
-      <div class="botones" style="padding-bottom:12px"><button type="button" class="btn-sec" data-pdf="${o.n}">${o.estado === 'anulada' ? 'PDF (marcado ANULADA)' : 'Descargar PDF'}</button>${M.editable(o) && E.cfg.activa ? `<button type="button" class="btn-sec" data-editar="${o.n}">Editar</button>` : ''}${o.estado !== 'anulada' && E.cfg.activa ? (anulacionPedida(o.n) ? '<span class="chip c-amarillo" style="align-self:center">Anulación pedida</span>' : `<button type="button" class="btn-sec btn-peligro" data-pedir-anular="${o.n}">Solicitar anulación</button>`) : ''}</div>
+      <div class="botones" style="padding-bottom:12px"><button type="button" class="btn-sec" data-pdf="${o.n}">${o.estado === 'anulada' ? 'PDF (marcado ANULADA)' : 'Descargar PDF'}</button>${o.estado !== 'anulada' ? `<button type="button" class="btn-sec btn-wsp" data-wsp="${o.n}">Enviar por WhatsApp</button>` : ''}${M.editable(o) && E.cfg.activa ? `<button type="button" class="btn-sec" data-editar="${o.n}">Editar</button>` : ''}${o.estado !== 'anulada' && E.cfg.activa ? (anulacionPedida(o.n) ? '<span class="chip c-amarillo" style="align-self:center">Anulación pedida</span>' : `<button type="button" class="btn-sec btn-peligro" data-pedir-anular="${o.n}">Solicitar anulación</button>`) : ''}</div>
     </details>`).join('') || '<div class="vacio">No hay órdenes con eso.</div>'}</div>`;
   $('o-buscar').addEventListener('input', e => { E.filtro = e.target.value; const p = e.target.selectionStart; pintarOrdenes(); const i = $('o-buscar'); i.focus(); i.setSelectionRange(p, p); });
   $('o-sinfolio').addEventListener('change', e => { E.soloSinFolio = e.target.checked; pintarOrdenes(); });
@@ -339,6 +339,15 @@ function pintarOrdenes() {
       avisar('Anulación solicitada: le llega a Emmanuel');
     } catch (e) { avisar(mensajeError(e), true); b.disabled = false; }
   }));
+  document.querySelectorAll('[data-wsp]').forEach(b => b.addEventListener('click', async () => {
+    const o = E.ordenes.get(b.dataset.wsp), cli = cliente(o.clienteId) || { nombre: o.cliente };
+    const yaListo = b.dataset.listo === '1';
+    b.disabled = true; if (!yaListo) b.textContent = 'Preparando…';
+    let r;
+    try { r = await enviarWsp(b, o, cli); } catch (e) { avisar('No se pudo enviar: ' + (e.message || e), true); }
+    b.disabled = false;
+    if (r !== 'otra') { b.textContent = 'Enviar por WhatsApp'; delete b.dataset.listo; }
+  }));
   document.querySelectorAll('[data-pdf]').forEach(b => b.addEventListener('click', async () => {
     const o = E.ordenes.get(b.dataset.pdf), cli = cliente(o.clienteId) || { nombre: o.cliente };
     b.disabled = true; b.textContent = 'Generando…';
@@ -351,6 +360,36 @@ function pintarOrdenes() {
   }));
 }
 
+// v1.2.0 · Enviar la orden por WhatsApp: en el celular se abre "Compartir" con el PDF y el mensaje (se elige el chat o grupo).
+// Si el equipo no puede compartir archivos (computador), se descarga el PDF y se abre WhatsApp con el mensaje ya escrito.
+const MESES_L = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const fechaLarga = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || ''); return m ? `${Number(m[3])} de ${MESES_L[Number(m[2]) - 1]} de ${m[1]}` : String(f || ''); };
+const mensajeOrden = o => `Hola, te enviamos la orden de venta N° ${o.n} del pedido del ${fechaLarga(o.fecha)}. Por favor revísala contra el pedido entregado y avísanos si falta algo o hay alguna diferencia. ¡Gracias! Panadería Fën`;
+const listosWsp = new Map();   // orden → archivo ya hecho (si el celular pidió tocar de nuevo)
+async function pdfDeOrden(o, cli) {
+  let eds = [];
+  if (o.editada) eds = (await getDocs(query(collection(db, 'ediciones'), where('n', '==', o.n)))).docs.map(d => d.data()).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  return Pdf.descargar(o, cli, M.originalesDe(eds), eds, false, true);
+}
+async function enviarWsp(b, o, cli) {
+  const texto = mensajeOrden(o);
+  let listo = listosWsp.get(o.n);
+  if (!listo) { const r = await pdfDeOrden(o, cli); listo = new File([r.blob], r.nombre, { type: 'application/pdf' }); }
+  if (navigator.canShare && navigator.canShare({ files: [listo] })) {
+    try { await navigator.share({ files: [listo], text: texto }); listosWsp.delete(o.n); return; }
+    catch (e) {
+      if (e && e.name === 'AbortError') { listosWsp.delete(o.n); return; }   // cerró el menú
+      // El celular pide un toque nuevo (el PDF tardó): queda listo para el siguiente toque
+      if (e && e.name === 'NotAllowedError') { listosWsp.set(o.n, listo); b.textContent = 'Tocar para enviar'; b.dataset.listo = '1'; return 'otra'; }
+      throw e;
+    }
+  }
+  // Computador: baja el PDF y abre WhatsApp con el mensaje (se adjunta el PDF a mano)
+  const url = URL.createObjectURL(listo), a = document.createElement('a'); a.href = url; a.download = listo.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  const destino = cli.grupoWhatsapp ? null : cli.whatsapp;
+  if (cli.grupoWhatsapp) { try { await navigator.clipboard.writeText(texto); } catch (e) {} window.open(cli.grupoWhatsapp, '_blank', 'noopener'); avisar('PDF descargado y mensaje copiado: en el grupo, pega el mensaje y adjunta el PDF'); }
+  else { window.open(`https://wa.me/${destino || ''}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener'); avisar('PDF descargado: adjúntalo en el chat de WhatsApp que se abrió'); }
+}
 const anulacionPedida = n => E.solicitudes.some(s => s.tipo === 'anulacion' && s.n === Number(n) && s.estado === 'pendiente');
 // ── Solicitudes ────────────────────────────────────
 async function cargarRecetas() {
