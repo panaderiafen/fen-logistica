@@ -6,9 +6,9 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.1.0';
-import * as M from './modelo.js?v=1.1.0';
-import * as Pdf from './pdf.js?v=1.1.0';
+} from './firebase.js?v=1.1.1';
+import * as M from './modelo.js?v=1.1.1';
+import * as Pdf from './pdf.js?v=1.1.1';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -310,7 +310,7 @@ function pintarOrdenes() {
   const lista = [...E.ordenes.values()].filter(o => !o.quitadoEnPlanilla)
     .filter(o => !E.soloSinFolio || o.sinFolio)
     .filter(o => !q || M.clave(o.cliente).includes(q) || String(o.n).includes(q))
-    .sort((a, b) => b.n - a.n);
+    .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || b.n - a.n);   // por fecha de la orden, la más reciente arriba
   const chips = o => [o.estado === 'anulada' ? '<span class="chip c-rojo">Anulada</span>' : '',
     o.folio ? `<span class="chip c-azul">Folio ${esc(o.folio)}</span>` : '<span class="chip c-gris">Sin folio</span>',
     /PAGADO/.test(o.estadoPago) ? '<span class="chip c-verde">Pagada</span>' : '',

@@ -1,8 +1,13 @@
-# fën · Órdenes B2B (logística) · v1.1.0
+# fën · Órdenes B2B (logística) · v1.1.1
 
-**App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 6 de octubre de 2026
+**App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 7 de octubre de 2026
 
 La app con la que la encargada de logística registra las órdenes B2B. Guarda directo en la base nueva (Firebase **fen-b2b**), así que es rápida y todo se ve en vivo. La planilla recibe una copia automática.
+
+## Novedades de la v1.1.1
+- **Órdenes** se ordenan por la **fecha de la orden** (la más reciente arriba). Antes iban por N°, y una orden hecha tarde para un día anterior quedaba arriba.
+
+Archivos: cambian `app.js`, `config.js`, `index.html`, `README.md` y los demás `.js` (solo versión). Sube todos.
 
 ## Novedades de la v1.1.0
 - **Solicitar anulación** en cada orden (con motivo). Le llega a Emmanuel; mientras tanto la orden muestra "Anulación pedida".
