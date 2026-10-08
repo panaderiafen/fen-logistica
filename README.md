@@ -1,8 +1,15 @@
-# fën · Órdenes B2B (logística) · v1.2.0
+# fën · Órdenes B2B (logística) · v1.2.1
 
-**App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 7 de octubre de 2026
+**App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 8 de octubre de 2026
 
 La app con la que la encargada de logística registra las órdenes B2B. Guarda directo en la base nueva (Firebase **fen-b2b**), así que es rápida y todo se ve en vivo. La planilla recibe una copia automática.
+
+## Novedades de la v1.2.1
+- **PDF de la orden con el diseño nuevo** (el mismo de Sistema Fën v0.15.2): total con IVA grande arriba, productos en un recuadro con "Neto" sobre los montos y "12 × $1.200" debajo de cada uno, y los cambios de una orden editada dichos en palabras ("eran 10, se agregaron 2"). Se lee mejor en el celular cuando llega por WhatsApp.
+
+**Instalación:** GitHub, repo `fen-logistica`: sube todos los archivos del zip (reemplazan a los de antes). Abajo debe decir **v1.2.1**. Nada más cambia (ni reglas ni script).
+
+**Lista de verificación:** abre una orden → PDF: se ve con el diseño nuevo; "Enviar por WhatsApp" sigue adjuntando el PDF.
 
 ## Novedades de la v1.2.0
 - **Enviar por WhatsApp** en cada orden (Órdenes). En el celular se abre "Compartir" con el **PDF de la orden** y este mensaje: "Hola, te enviamos la orden de venta N° … del pedido del … Por favor revísala contra el pedido entregado y avísanos si falta algo o hay alguna diferencia. ¡Gracias! Panadería Fën". Se elige WhatsApp y el chat o **grupo** del cliente.

@@ -6,9 +6,9 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.2.0';
-import * as M from './modelo.js?v=1.2.0';
-import * as Pdf from './pdf.js?v=1.2.0';
+} from './firebase.js?v=1.2.1';
+import * as M from './modelo.js?v=1.2.1';
+import * as Pdf from './pdf.js?v=1.2.1';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
