@@ -1,15 +1,18 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística) — cálculos  v1.3.0 (foto de la venta y lista del Catálogo)
+//  fën · Órdenes B2B (logística) — cálculos  v1.3.0 (foto de la venta y lista del Catálogo) · v1.3.1 (precio especial por ID)
 //  Funciones puras: precios, totales, qué se puede editar y el resumen de una edición.
 //  Mismos cálculos que la app B2B de siempre (IVA por línea y del total, redondeado).
 // ═══════════════════════════════════════════════
 export const clave = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 export const vigente = d => d && !d.quitadoEnPlanilla && d.estado !== 'archivado' && d.estado !== 'inactivo';
 
-// Precio de un producto para un cliente: el especial si lo tiene, si no el precio base
+// Precio de un producto para un cliente: el especial si lo tiene, si no el precio base.
+// v1.3.1: el precio especial va pegado al ID del producto (clientes.precios[].productoId, Sistema Fën v0.75.0). Por el nombre solo un
+// precio antiguo que todavía no tiene ID (el mismo criterio que b2b-modelo.precioEsDe de Sistema Fën).
+export const precioEsDe = (p, producto) => !!p && !!producto && (String(p.productoId || '').trim() ? String(p.productoId).trim() === String(producto.id || '').trim() : clave(p.producto) === clave(producto.nombre));
 export function precioPara(cliente, producto) {
   if (!producto) return { precio: 0, especial: false };
-  const esp = ((cliente && cliente.precios) || []).find(p => (p.productoId && p.productoId === producto.id) || clave(p.producto) === clave(producto.nombre));
+  const esp = ((cliente && cliente.precios) || []).find(p => precioEsDe(p, producto));
   if (esp && Number(esp.precio) > 0) return { precio: Number(esp.precio), especial: true };
   return { precio: Number(producto.precioBase) || 0, especial: false };
 }

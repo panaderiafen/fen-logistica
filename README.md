@@ -1,8 +1,19 @@
-# fën · Órdenes B2B (logística) · v1.3.0
+# fën · Órdenes B2B (logística) · v1.3.1
 
 **App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 8 de octubre de 2026
 
 La app con la que la encargada de logística registra las órdenes B2B. Guarda directo en la base nueva (Firebase **fen-b2b**), así que es rápida y todo se ve en vivo. La planilla recibe una copia automática.
+
+## Novedades de la v1.3.1 (va con Sistema Fën v0.75.0) · 21 de octubre de 2026
+- **El precio especial de un cliente va por el ID del producto**, no por el nombre (decisión de Emmanuel: unir por ID, nunca por nombre). Si dos productos se llaman parecido, o uno cambia de nombre, cada cliente sigue pagando su precio en el producto correcto. Un precio especial antiguo que todavía no tiene su ID se sigue buscando por el nombre, hasta que Emmanuel lo une en Sistema Fën (Ventas B2B → Clientes → "Unir los precios especiales a su producto").
+- Nada cambia en la pantalla: los productos se eligen de la lista, como siempre. Sin lecturas ni escrituras nuevas.
+- **Reglas:** las mismas de fen-b2b v1.7.0 (no hay que publicar nada).
+
+**Instalación:** GitHub, repo `fen-logistica`: sube todos los archivos del zip `fen-logistica-v1.3.1.zip` (cambian `modelo.js`, `app.js`, `config.js`, `index.html`, `README.md` y la versión de los demás) → **Commit changes**. Arriba debe decir **v1.3.1**. En el celular, cerrar y abrir la app.
+
+**Lista de verificación:** una orden nueva para un cliente con precio especial: la línea dice "precio especial" con su precio. Un cliente sin precio especial paga el precio base. El PDF sale igual.
+
+**Si algo sale mal:** vuelve a subir la v1.3.0 (busca el precio por ID o por nombre).
 
 ## Novedades de la v1.3.0 (va con Sistema Fën v0.74.0)
 - **Producto nuevo del catálogo** (Solicitudes): la lista ya no sale de la planilla de Producción (CSV). Sale del **Catálogo de Sistema Fën**: los productos de Fën que todavía no están en B2B (y que no pediste ya). La solicitud lleva el ID del catálogo (`catalogoId`). Emmanuel la resuelve en Sistema Fën → Catálogo → Productos → Pedidos; al aprobarla, el producto aparece solo para hacer órdenes.

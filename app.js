@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.3.0
+//  fën · Órdenes B2B (logística)  v1.3.1 (precio especial por el ID del producto)
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
 //  v1.3.0: la copia a la planilla está apagada (ya no se llama al script b2b_planilla); cada línea guarda su foto (catalogoId, tipo,
 //  área, receta o reventa); "Producto nuevo" pide de la lista del Catálogo de Sistema Fën (config/catalogoDisponible), con su catalogoId.
@@ -7,9 +7,9 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.3.0';
-import * as M from './modelo.js?v=1.3.0';
-import * as Pdf from './pdf.js?v=1.3.0';
+} from './firebase.js?v=1.3.1';
+import * as M from './modelo.js?v=1.3.1';
+import * as Pdf from './pdf.js?v=1.3.1';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
