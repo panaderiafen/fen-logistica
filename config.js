@@ -5,7 +5,7 @@
 //  la cuenta de la persona (logistica/{uid}).
 // ═══════════════════════════════════════════════
 window.FEN_LOG = {
-  VERSION: '1.2.1',
+  VERSION: '1.3.0',
   // Proyecto fen-b2b (no es secreto: solo dice cuál es el proyecto)
   firebase: {
     apiKey: 'AIzaSyAXp78b1DrjbBZnWRWsjC0MkuPWBaUm32A',
@@ -15,8 +15,7 @@ window.FEN_LOG = {
     messagingSenderId: '8681232347',
     appId: '1:8681232347:web:b2c824d7df386dc7d4b9fe'
   },
-  // Recetas que publica Producción (para pedir productos nuevos)
-  RECETAS_CSV_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRKvAbWUlwxbcCx54T3lfdMa8XxPD-F2lSE05-vMfdv_UpFVpDi6pbAJOpM7O6LBLmdfkz5804lzMYn/pub?gid=1370945279&single=true&output=csv',
+  // v1.3.0: "Producto nuevo" lee la lista del Catálogo de Sistema Fën (fen-b2b config/catalogoDisponible): ya no la planilla (CSV)
   DIAS_LISTA: 14,     // la lista muestra las órdenes de estos días + todas las sin folio
   DATOS_EMPRESA: { direccion: 'Ainavillo 764, Concepción', telefono: '+56 9 4147 3683', correo: 'panaderiafen@gmail.com', web: 'WWW.PANADERIAFEN.CL · @PANADERIAFEN' }
 };

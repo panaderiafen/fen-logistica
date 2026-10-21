@@ -1,25 +1,27 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.0.0
+//  fën · Órdenes B2B (logística)  v1.3.0
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
-//  La planilla recibe una copia automática (script de B2B v2.4.0, b2b_planilla).
+//  v1.3.0: la copia a la planilla está apagada (ya no se llama al script b2b_planilla); cada línea guarda su foto (catalogoId, tipo,
+//  área, receta o reventa); "Producto nuevo" pide de la lista del Catálogo de Sistema Fën (config/catalogoDisponible), con su catalogoId.
 // ═══════════════════════════════════════════════
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.2.1';
-import * as M from './modelo.js?v=1.2.1';
-import * as Pdf from './pdf.js?v=1.2.1';
+} from './firebase.js?v=1.3.0';
+import * as M from './modelo.js?v=1.3.0';
+import * as Pdf from './pdf.js?v=1.3.0';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pesos = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+const AREAS = { PAN: 'Panadería', BOL: 'Bollería', PAS: 'Pastelería', CAF: 'Cafetería', REVENTA: 'Reventa', B2B: 'Canal B2B' };   // los de areas.js de Sistema Fën
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const diaCorto = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || ''); return m ? `${Number(m[3])} ${MESES[Number(m[2]) - 1]}` : (f || ''); };
 
 const E = {
   user: null, rol: null, cfg: { activa: false, scriptUrl: '' },
-  clientes: [], productos: [], ordenes: new Map(), solicitudes: [], recetas: null,
+  clientes: [], productos: [], ordenes: new Map(), solicitudes: [], disponible: null,
   escuchas: [], form: null, filtro: '', soloSinFolio: false, sinc: { corriendo: false, error: '', ultima: 0 }
 };
 
@@ -130,25 +132,12 @@ function pintarRespuestas() {
   }));
 }
 
-// ── Copia a la planilla (por detrás) ───────────────
-const pendientesPlanilla = () => [...E.ordenes.values()].filter(o => o.planillaPendiente).length;
+// ── Copia a la planilla: APAGADA desde la v1.3.0 (Sistema Fën v0.73.0 apagó las copias en vivo; la planilla queda como historial) ──
 function pintarEstadoPlanilla() {
-  const n = pendientesPlanilla(), el = $('estado-planilla');
-  if (!el) return;
-  el.textContent = E.sinc.corriendo ? 'Pasando a la planilla…' : n ? `${n} por pasar a la planilla${E.sinc.error ? ' · se reintenta' : ''}` : 'Planilla al día';
+  const el = $('estado-planilla');
+  if (el) el.textContent = 'Copia a la planilla apagada';
 }
-async function pasarAPlanilla() {
-  if (!E.cfg.scriptUrl || E.sinc.corriendo || !E.user) return;
-  E.sinc.corriendo = true; pintarEstadoPlanilla();
-  try {
-    const cuerpo = JSON.stringify({ action: 'b2b_planilla', accion: 'b2b_planilla', idToken: await E.user.getIdToken() });
-    let r = await fetch(E.cfg.scriptUrl, { method: 'POST', body: cuerpo }).then(x => x.json());
-    if (r && r.code === 'version') r = await fetch(E.cfg.scriptUrl + '?p=' + encodeURIComponent(cuerpo)).then(x => x.json());
-    E.sinc.error = r && r.ok ? '' : ((r && (r.error || r.msg)) || 'error');
-  } catch (e) { E.sinc.error = e.message || 'sin conexión'; }
-  E.sinc.corriendo = false; E.sinc.ultima = Date.now(); pintarEstadoPlanilla();
-}
-setInterval(() => { if (document.visibilityState === 'visible' && pendientesPlanilla() && Date.now() - E.sinc.ultima > 100000) pasarAPlanilla(); }, 30000);
+function pasarAPlanilla() { /* v1.3.0: apagada (ya no se llama al script b2b_planilla) */ }
 
 // ── Navegación ─────────────────────────────────────
 const VISTAS = ['nueva', 'ordenes', 'solicitudes'];
@@ -170,9 +159,11 @@ function lineasDelForm() {
   const f = E.form, cli = cliente(f.clienteId);
   return M.juntarLineas(f.lineas.filter(l => l.productoId && Number(l.cantidad) > 0).map(l => {
     const p = producto(l.productoId) || { id: null, nombre: l.nombre || l.productoId, precioBase: l.precio };
+    // v1.3.0: al editar, la línea del mismo producto conserva su foto (la venta guarda lo que era al crearla)
+    const foto = l.foto && (!p.id || !p.catalogoId || p.catalogoId === l.foto.catalogoId) ? l.foto : null;
     // Al editar, una línea que ya estaba mantiene su precio; las nuevas toman el de la lista
     const precio = l.precioFijo != null ? l.precioFijo : M.precioPara(cli, p).precio;
-    return M.linea(p, l.cantidad, precio);
+    return M.linea(p, l.cantidad, precio, foto);
   }));
 }
 function pintarNueva() {
@@ -218,7 +209,7 @@ function pintarLineas() {
       <div class="precio">${l.productoId ? `${pesos(pr.precio)} neto c/u${pr.especial ? ' · <span class="chip c-verde">precio especial</span>' : pr.fijo ? ' · precio de la orden' : ''}${sub ? ' · ' + pesos(sub) : ''}${!cli && !pr.fijo ? ' · elige el cliente para ver su precio' : ''}` : ''}</div>
     </div>`;
   }).join('');
-  cont.querySelectorAll('.l-prod').forEach(s => s.addEventListener('change', e => { const l = f.lineas[e.target.dataset.i]; l.productoId = e.target.value; l.precioFijo = null; f.tocado = true; pintarLineas(); }));
+  cont.querySelectorAll('.l-prod').forEach(s => s.addEventListener('change', e => { const l = f.lineas[e.target.dataset.i]; l.productoId = e.target.value; l.precioFijo = null; l.foto = null; f.tocado = true; pintarLineas(); }));
   cont.querySelectorAll('.l-cant').forEach(s => s.addEventListener('input', e => { f.lineas[e.target.dataset.i].cantidad = e.target.value; f.tocado = true; pintarTotales(); }));
   cont.querySelectorAll('.l-cant').forEach(s => s.addEventListener('change', () => pintarLineas()));
   cont.querySelectorAll('[data-quitar]').forEach(b => b.addEventListener('click', () => { f.lineas.splice(Number(b.dataset.quitar), 1); if (!f.lineas.length) f.lineas.push({ productoId: '', cantidad: '' }); f.tocado = true; pintarLineas(); }));
@@ -277,7 +268,7 @@ async function guardarEdicion(f, cli, lineas) {
     nueva.editada = { por: E.user.email, en: serverTimestamp(), veces: ((antes.editada && antes.editada.veces) || 0) + 1 };
     const resumen = M.resumenCambios(antes, nueva) || 'Sin cambios en productos';
     tx.set(oref, nueva);
-    tx.set(doc(collection(db, 'ediciones')), { n, fecha: M.ahoraTexto(), motivo: f.motivo.trim(), resumen, cambios: JSON.stringify({ antes: antes.lineas, despues: lineas }), por: E.user.email, en: serverTimestamp(), planillaPendiente: true });
+    tx.set(doc(collection(db, 'ediciones')), { n, fecha: M.ahoraTexto(), motivo: f.motivo.trim(), resumen, cambios: JSON.stringify({ antes: antes.lineas, despues: lineas }), por: E.user.email, en: serverTimestamp(), planillaPendiente: false });
     return { nueva, originales: M.cantidades(antes), resumen };
   });
   E.form = formVacio();
@@ -298,7 +289,7 @@ function editar(o) {
     // si no está en el catálogo, se mantiene tal cual (nombre y precio de la orden)
     lineas: o.lineas.map(l => {
       const p = (l.productoId && producto(l.productoId)) || E.productos.find(x => M.clave(x.nombre) === M.clave(l.producto));
-      return { productoId: p ? p.id : 'nombre:' + l.producto, nombre: l.producto, cantidad: String(l.cantidad), precioFijo: l.precio };
+      return { productoId: p ? p.id : 'nombre:' + l.producto, nombre: l.producto, cantidad: String(l.cantidad), precioFijo: l.precio, foto: M.fotoDe(l) };
     }) };
   location.hash = '#nueva';
   if (vistaDesdeHash() === 'nueva') pintarNueva();
@@ -314,7 +305,7 @@ function pintarOrdenes() {
   const chips = o => [o.estado === 'anulada' ? '<span class="chip c-rojo">Anulada</span>' : '',
     o.folio ? `<span class="chip c-azul">Folio ${esc(o.folio)}</span>` : '<span class="chip c-gris">Sin folio</span>',
     /PAGADO/.test(o.estadoPago) ? '<span class="chip c-verde">Pagada</span>' : '',
-    o.planillaPendiente ? '<span class="chip c-amarillo">Por pasar a la planilla</span>' : ''].join('');
+    ''].join('');   // v1.3.0: sin "Por pasar a la planilla" (la copia está apagada)
   $('v-ordenes').innerHTML = `<h1 id="t-ordenes">Órdenes</h1>
     <div class="filtros"><div class="campo"><label for="o-buscar">Buscar cliente o N°</label><input id="o-buscar" value="${esc(E.filtro)}" placeholder="Ej: Oveja o 2580"></div>
       <label class="check"><input type="checkbox" id="o-sinfolio" ${E.soloSinFolio ? 'checked' : ''}> Solo sin folio</label></div>
@@ -392,14 +383,17 @@ async function enviarWsp(b, o, cli) {
 }
 const anulacionPedida = n => E.solicitudes.some(s => s.tipo === 'anulacion' && s.n === Number(n) && s.estado === 'pendiente');
 // ── Solicitudes ────────────────────────────────────
-async function cargarRecetas() {
-  if (E.recetas) return E.recetas;
-  const r = await fetch(F.RECETAS_CSV_URL, { cache: 'no-store' });
-  if (!r.ok) throw new Error('No se pudo leer la lista de Producción.');
-  E.recetas = M.recetasDeCSV(await r.text());
-  return E.recetas;
+// v1.3.0: la lista de productos que se pueden pedir la publica el Catálogo de Sistema Fën en fen-b2b (config/catalogoDisponible):
+// 1 lectura al abrir "Producto nuevo" (antes: la lista de recetas de la planilla, CSV). Necesita las reglas de fen-b2b v1.7.0.
+async function cargarDisponible() {
+  if (E.disponible) return E.disponible;
+  let sn;
+  try { sn = await getDoc(doc(db, 'config', 'catalogoDisponible')); }
+  catch (e) { throw new Error(/permission/.test((e && e.code) || '') ? 'Falta que Emmanuel publique las reglas nuevas de fen-b2b (v1.7.0).' : 'No se pudo leer la lista del Catálogo.'); }
+  E.disponible = sn.exists() ? (sn.data().productos || []) : [];
+  return E.disponible;
 }
-const solForm = { tipo: 'precio', clienteId: '', productoId: '', recetaId: '', precio: '', nota: '' };
+const solForm = { tipo: 'precio', clienteId: '', productoId: '', catalogoId: '', precio: '', nota: '' };
 function pintarSolicitudes() {
   const s = solForm;
   const estadoChip = x => x.estado === 'aprobada' ? '<span class="chip c-verde">Aprobada</span>' : x.estado === 'rechazada' ? '<span class="chip c-rojo">Rechazada</span>' : '<span class="chip c-amarillo">Pendiente</span>';
@@ -408,12 +402,12 @@ function pintarSolicitudes() {
     <div class="tarjeta" style="display:flex;flex-direction:column;gap:12px">
       <div class="pastillas" role="group" aria-label="Tipo de solicitud">
         <button type="button" class="pastilla" data-tipo="precio" aria-pressed="${s.tipo === 'precio'}">Precio especial</button>
-        <button type="button" class="pastilla" data-tipo="producto" aria-pressed="${s.tipo === 'producto'}">Producto nuevo de Producción</button>
+        <button type="button" class="pastilla" data-tipo="producto" aria-pressed="${s.tipo === 'producto'}">Producto nuevo del catálogo</button>
       </div>
       <div class="campo"><label for="s-cliente">Cliente${s.tipo === 'producto' ? ' (opcional: si es para un cliente)' : ''}</label><select id="s-cliente"><option value="">${s.tipo === 'producto' ? 'Para todos' : 'Elige…'}</option>${E.clientes.map(c => `<option value="${esc(c.id)}" ${c.id === s.clienteId ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></div>
       ${s.tipo === 'precio'
         ? `<div class="campo"><label for="s-producto">Producto</label><select id="s-producto"><option value="">Elige…</option>${E.productos.map(p => `<option value="${esc(p.id)}" ${p.id === s.productoId ? 'selected' : ''}>${esc(p.nombre)} · base ${pesos(p.precioBase)}</option>`).join('')}</select></div>`
-        : `<div class="campo"><label for="s-receta">Producto de Producción</label><select id="s-receta"><option value="">Cargando la lista…</option></select></div>`}
+        : `<div class="campo"><label for="s-catalogo">Producto del catálogo</label><select id="s-catalogo"><option value="">Cargando la lista…</option></select><span class="ayuda">Los productos de Fën que todavía no están en B2B.</span></div>`}
       <div class="campo"><label for="s-precio">Precio neto propuesto</label><input id="s-precio" type="number" inputmode="numeric" min="1" value="${esc(s.precio)}" placeholder="Ej: 2590"></div>
       <div class="campo"><label for="s-nota">Comentario</label><textarea id="s-nota" rows="2" placeholder="Ej: lo pidió el cliente para los fines de semana">${esc(s.nota)}</textarea></div>
       <div class="error" id="s-error" role="alert"></div>
@@ -426,12 +420,12 @@ function pintarSolicitudes() {
   if ($('s-producto')) $('s-producto').addEventListener('change', e => { s.productoId = e.target.value; });
   $('s-precio').addEventListener('input', e => { s.precio = e.target.value; });
   $('s-nota').addEventListener('input', e => { s.nota = e.target.value; });
-  if (s.tipo === 'producto') cargarRecetas().then(rs => {
-    const sel = $('s-receta'); if (!sel) return;
-    const nuevas = M.recetasNuevas(rs, E.productos);
-    sel.innerHTML = `<option value="">${nuevas.length ? 'Elige…' : 'No hay productos nuevos en Producción'}</option>` + nuevas.map(r => `<option value="${esc(r.id)}" ${r.id === s.recetaId ? 'selected' : ''}>${esc(r.nombre)}${r.area ? ' · ' + esc(r.area) : ''}</option>`).join('');
-    sel.addEventListener('change', e => { s.recetaId = e.target.value; });
-  }).catch(e => { const sel = $('s-receta'); if (sel) sel.innerHTML = `<option value="">${esc(e.message)}</option>`; });
+  if (s.tipo === 'producto') cargarDisponible().then(rs => {
+    const sel = $('s-catalogo'); if (!sel) return;
+    const nuevas = M.disponibles(rs, E.productos, E.solicitudes);
+    sel.innerHTML = `<option value="">${nuevas.length ? 'Elige…' : 'No hay productos nuevos en el catálogo'}</option>` + nuevas.map(r => `<option value="${esc(r.id)}" ${r.id === s.catalogoId ? 'selected' : ''}>${esc(r.nombre)}${r.area ? ' · ' + esc(AREAS[r.area] || r.area) : ''}</option>`).join('');
+    sel.addEventListener('change', e => { s.catalogoId = e.target.value; });
+  }).catch(e => { const sel = $('s-catalogo'); if (sel) sel.innerHTML = `<option value="">${esc(e.message)}</option>`; });
   $('s-enviar').addEventListener('click', async () => {
     const err = $('s-error'); err.textContent = '';
     const cli = cliente(s.clienteId), precio = Math.round(Number(s.precio) || 0);
@@ -442,15 +436,15 @@ function pintarSolicitudes() {
       if (!p) { err.textContent = 'Elige el producto.'; return; }
       datos = { tipo: 'precio', clienteId: cli.id, cliente: cli.nombre, productoId: p.id, producto: p.nombre, idReceta: p.idReceta || null, area: p.area || null };
     } else {
-      const r = (E.recetas || []).find(x => x.id === s.recetaId);
-      if (!r) { err.textContent = 'Elige el producto de Producción.'; return; }
-      datos = { tipo: 'producto', clienteId: cli ? cli.id : null, cliente: cli ? cli.nombre : null, productoId: null, producto: r.nombre, idReceta: r.id, area: r.area || null };
+      const r = (E.disponible || []).find(x => x.id === s.catalogoId);
+      if (!r) { err.textContent = 'Elige el producto del catálogo.'; return; }
+      datos = { tipo: 'producto', clienteId: cli ? cli.id : null, cliente: cli ? cli.nombre : null, productoId: null, producto: r.nombre, catalogoId: r.id, idReceta: null, area: r.area || null };
     }
     if (!(precio > 0)) { err.textContent = 'Escribe el precio neto propuesto.'; return; }
     const b = $('s-enviar'); b.disabled = true; b.textContent = 'Enviando…';
     try {
       await addDoc(collection(db, 'solicitudes'), { ...datos, precio, nota: s.nota.trim(), estado: 'pendiente', por: E.user.email, en: serverTimestamp(), respuesta: null });
-      Object.assign(s, { productoId: '', recetaId: '', precio: '', nota: '' });
+      Object.assign(s, { productoId: '', catalogoId: '', precio: '', nota: '' });
       avisar('Solicitud enviada');
       pintarSolicitudes();
     } catch (e) { err.textContent = mensajeError(e); b.disabled = false; b.textContent = 'Enviar solicitud'; }

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística) — cálculos  v1.0.0
+//  fën · Órdenes B2B (logística) — cálculos  v1.3.0 (foto de la venta y lista del Catálogo)
 //  Funciones puras: precios, totales, qué se puede editar y el resumen de una edición.
 //  Mismos cálculos que la app B2B de siempre (IVA por línea y del total, redondeado).
 // ═══════════════════════════════════════════════
@@ -14,11 +14,23 @@ export function precioPara(cliente, producto) {
   return { precio: Number(producto.precioBase) || 0, especial: false };
 }
 
-export function linea(producto, cantidad, precio) {
+// v1.3.0 · La foto de la venta: lo que el Catálogo de Sistema Fën dice del producto AL CREAR la orden (su ID del catálogo, de dónde sale,
+// su área y su receta o reventa). Así Finanzas y el Plan de Panadería saben qué se vendió aunque el producto cambie después.
+// Igual que catalogo-productos-modelo.js → fotoLinea de Sistema Fën (el producto de fen-b2b trae catalogoId, tipo, idReceta, area, reventaId).
+export function fotoLinea(producto) {
+  if (!producto || !String(producto.catalogoId || '').trim()) return null;
+  const tipo = String(producto.tipo || '').trim();
+  return { catalogoId: String(producto.catalogoId).trim(), tipo, area: String(producto.area || '').trim(), recetaId: tipo === 'receta' ? String(producto.idReceta || '').trim() : '',
+    reventaId: tipo === 'reventa' ? String(producto.reventaId || producto.idReceta || '').trim() : '', unidadesPorVenta: 1 };
+}
+// foto: la de la línea original al editar (si el producto es el mismo, se conserva: la venta guarda su foto)
+export function linea(producto, cantidad, precio, foto) {
   const c = Number(cantidad) || 0, p = Math.round(Number(precio) || 0);
   const neto = c * p, iva = Math.round(neto * 0.19);
-  return { producto: producto.nombre, productoId: producto.id || null, cantidad: c, precio: p, neto, iva, total: neto + iva };
+  const f = foto && foto.catalogoId ? foto : fotoLinea(producto);
+  return { producto: producto.nombre, productoId: producto.id || null, cantidad: c, precio: p, neto, iva, total: neto + iva, ...(f || {}) };
 }
+export const fotoDe = l => (l && l.catalogoId ? { catalogoId: l.catalogoId, tipo: l.tipo || '', area: l.area || '', recetaId: l.recetaId || '', reventaId: l.reventaId || '', unidadesPorVenta: Number(l.unidadesPorVenta) > 0 ? Number(l.unidadesPorVenta) : 1 } : null);
 // Un mismo producto en dos líneas (con el mismo precio) queda en una sola, con las cantidades sumadas
 export function juntarLineas(lineas) {
   const out = [];
@@ -53,7 +65,8 @@ export function armarOrden({ n, fecha, cliente, lineas, obs, correo, creada, ts 
     estadoPago: 'PENDIENTE', fechaPago: null, folio: null, sinFolio: true, fechaFolio: null,
     obs: String(obs || '').trim(), archivada: false, estado: 'activa', extra: {}, revisar: [],
     origen: { app: 'logistica' }, quitadoEnPlanilla: false,
-    creada: creada !== undefined ? creada : { por: correo, en: ts }, planillaPendiente: true
+    // v1.3.0: la copia a la planilla está apagada (Sistema Fën v0.73.0): la orden ya no se marca para pasar a la planilla
+    creada: creada !== undefined ? creada : { por: correo, en: ts }, planillaPendiente: false
   };
 }
 
@@ -78,7 +91,14 @@ export function resumenCambios(antes, despues) {
 // Cantidades originales por producto (para el PDF: tachado → nuevo)
 export const cantidades = o => (o.lineas || []).reduce((m, l) => { m[l.producto] = (m[l.producto] || 0) + l.cantidad; return m; }, {});
 
-// Recetas de Producción que todavía no son producto B2B (por ID de receta o por nombre)
+// v1.3.0 · Productos del Catálogo de Sistema Fën que todavía no están en B2B (fen-b2b config/catalogoDisponible, los publica Sistema Fën),
+// sin los que ya pediste y siguen pendientes. Reemplaza a la lista de recetas de la planilla (CSV).
+export function disponibles(lista, productos, solicitudes) {
+  const enB2b = new Set((productos || []).map(p => p.catalogoId).filter(Boolean));
+  const pedidos = new Set((solicitudes || []).filter(s => s.tipo === 'producto' && s.estado === 'pendiente' && s.catalogoId).map(s => s.catalogoId));
+  return (lista || []).filter(x => x && x.id && !enB2b.has(x.id) && !pedidos.has(x.id)).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+}
+// (hasta la v1.2.1) Recetas de Producción que todavía no son producto B2B (por ID de receta o por nombre): ya no se usa
 export function recetasNuevas(recetas, productos) {
   const ids = new Set(productos.map(p => p.idReceta).filter(Boolean)), nombres = new Set(productos.map(p => clave(p.nombre)));
   return recetas.filter(r => r.id && !ids.has(r.id) && !nombres.has(clave(r.nombre))).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));

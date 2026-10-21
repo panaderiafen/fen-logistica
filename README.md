@@ -1,8 +1,22 @@
-# fën · Órdenes B2B (logística) · v1.2.1
+# fën · Órdenes B2B (logística) · v1.3.0
 
 **App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 8 de octubre de 2026
 
 La app con la que la encargada de logística registra las órdenes B2B. Guarda directo en la base nueva (Firebase **fen-b2b**), así que es rápida y todo se ve en vivo. La planilla recibe una copia automática.
+
+## Novedades de la v1.3.0 (va con Sistema Fën v0.74.0)
+- **Producto nuevo del catálogo** (Solicitudes): la lista ya no sale de la planilla de Producción (CSV). Sale del **Catálogo de Sistema Fën**: los productos de Fën que todavía no están en B2B (y que no pediste ya). La solicitud lleva el ID del catálogo (`catalogoId`). Emmanuel la resuelve en Sistema Fën → Catálogo → Productos → Pedidos; al aprobarla, el producto aparece solo para hacer órdenes.
+- **Cada línea de una orden guarda su "foto"**: el ID del catálogo del producto, de dónde sale (receta, reventa o cargo), su área y su receta o reventa, tal como estaban al crear la orden. Al editar, una línea del mismo producto conserva su foto. Así Finanzas y el Plan de Panadería saben qué se vendió aunque el producto cambie después.
+- **Copia a la planilla apagada**: ya no se llama al script de la planilla ni se marcan las órdenes para pasarlas (la planilla queda como historial; el respaldo mensual está en Sistema Fën). Arriba dice "Copia a la planilla apagada".
+- Lecturas: 1 al abrir "Producto nuevo" (la lista del catálogo). Sin escrituras nuevas.
+
+**Necesita las reglas de fen-b2b v1.7.0** (vienen con Sistema Fën v0.74.0; publícalas antes de subir esta versión). Las reglas v1.7.0 también aceptan la v1.2.1, así que el orden seguro es: reglas → esta app.
+
+**Instalación:** GitHub, repo `fen-logistica`: sube todos los archivos del zip `fen-logistica-v1.3.0.zip` (reemplazan a los de antes; cambian `app.js`, `modelo.js`, `config.js`, `index.html`, `README.md` y la versión de los demás). Abajo/arriba debe decir **v1.3.0**. En el celular, cerrar y abrir la app.
+
+**Lista de verificación:** Solicitudes → "Producto nuevo del catálogo" muestra la lista; manda uno y en Sistema Fën aparece en Hoy y en Catálogo → Productos → Pedidos. Una orden nueva se guarda y su PDF sale igual. Arriba: "Copia a la planilla apagada".
+
+**Si algo sale mal:** vuelve a subir la v1.2.1 (funciona con las reglas v1.7.0; vuelve a leer la lista de la planilla).
 
 ## Novedades de la v1.2.1
 - **PDF de la orden con el diseño nuevo** (el mismo de Sistema Fën v0.15.2): total con IVA grande arriba, productos en un recuadro con "Neto" sobre los montos y "12 × $1.200" debajo de cada uno, y los cambios de una orden editada dichos en palabras ("eran 10, se agregaron 2"). Se lee mejor en el celular cuando llega por WhatsApp.
@@ -41,11 +55,11 @@ Archivos: cambian todos (versión); sube todos reemplazando.
 | --- | --- |
 | **Nueva orden** | Fecha, cliente y productos. El **precio sale de la lista**: el especial del cliente o el precio base. Al guardar, el N° lo da la base (el que sigue) y se descarga el **PDF** de la orden, con el mismo formato de siempre |
 | **Órdenes** | Las de los últimos 14 días y todas las que no tienen folio, en vivo. Buscar por cliente o N°, "Solo sin folio", **Descargar PDF**. **Editar** las que no tienen folio ni pago, con motivo (queda en el historial y el PDF lo muestra) |
-| **Solicitudes** | **Precio especial** para un cliente, o **producto nuevo** de Producción (de la lista que publica Producción, solo los que todavía no son producto B2B). Le llegan a Emmanuel en Sistema Fën; al aprobarlas, aparecen solas |
+| **Solicitudes** | **Precio especial** para un cliente, o **producto nuevo** del catálogo (de la lista que publica Sistema Fën, solo los que todavía no están en B2B). Le llegan a Emmanuel en Sistema Fën; al aprobarlas, aparecen solas |
 
 (i) **Si necesita otro precio**, no se escribe a mano: se pide en Solicitudes. Así ninguna orden sale con un precio que nadie aprobó.
 
-(i) **La planilla al día:** arriba dice "Planilla al día" o "N por pasar a la planilla". Se pasa sola después de cada orden y se reintenta cada pocos minutos si no hay internet.
+(i) **La planilla:** desde la v1.3.0 ya no recibe copia (queda como historial).
 
 (i) **Antes del cambio** (mientras se use la app B2B de siempre), esta app deja mirar pero no crear órdenes. Se activa sola cuando Emmanuel cambia a la base nueva en Sistema Fën.
 
