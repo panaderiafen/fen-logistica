@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.3.0
+//  fën · Órdenes B2B (logística)  v1.3.0 
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
 //  v1.3.0: la copia a la planilla está apagada (ya no se llama al script b2b_planilla); cada línea guarda su foto (catalogoId, tipo,
 //  área, receta o reventa); "Producto nuevo" pide de la lista del Catálogo de Sistema Fën (config/catalogoDisponible), con su catalogoId.
