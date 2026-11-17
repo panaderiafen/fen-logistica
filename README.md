@@ -1,8 +1,28 @@
-# fën · Órdenes B2B (logística) · v1.3.1
+# fën · Órdenes B2B (logística) · v1.4.0
 
 **App nueva** · repo `fen-logistica` · dirección: `https://panaderiafen.github.io/fen-logistica/` · 8 de octubre de 2026
 
 La app con la que la encargada de logística registra las órdenes B2B. Guarda directo en la base nueva (Firebase **fen-b2b**), así que es rápida y todo se ve en vivo. La planilla recibe una copia automática.
+
+## Novedades de la v1.4.0 (va con Sistema Fën v0.131.0) · 17 de noviembre de 2026
+- **Pestaña nueva: Cobros** (abajo, entre Órdenes y Solicitudes). Para anotar en el momento quién pagó en efectivo:
+  - **Fecha** de las órdenes (hoy, se puede cambiar).
+  - Los **clientes con órdenes de ese día sin folio**, cada uno en una línea con sus órdenes, el **total** y aparte el **redondeo**. El monto a cobrar viene **redondeado a la decena** como en la caja (termina en 1 a 5 baja, en 6 a 9 sube): total $45.312 → cobrar $45.310 (redondeo −$2).
+  - Se marcan los que pagaron y se presiona **Pagado**: sus órdenes quedan pagadas ("Efectivo · cobró logística") y el efectivo le llega a Emmanuel en Sistema Fën → **Efectivo → Por recibir**.
+  - **Deshacer**: si se marcó por error, mientras Emmanuel no lo haya recibido. Después ya no se puede.
+- Las órdenes pagadas ya no se pueden editar (como antes con cualquier orden pagada).
+- Lecturas: ninguna nueva (usa las órdenes que la app ya tiene a la vista). Escrituras: 1 por orden al marcar o deshacer.
+
+**Necesita las reglas de fen-b2b v1.9.0** (vienen con Sistema Fën v0.131.0). Orden seguro: reglas → Sistema Fën → esta app. Las reglas v1.9.0 también aceptan la v1.3.1.
+
+**Instalación:** GitHub, repo `fen-logistica`: sube todos los archivos del zip `fen-logistica-v1.4.0.zip` (cambian `app.js`, `modelo.js`, `estilos.css`, `index.html`, `config.js`, `README.md` y la versión de los demás) → **Commit changes**. Arriba debe decir **v1.4.0**. En el celular, cerrar y abrir la app.
+
+**Lista de verificación:**
+- [ ] Abajo aparece **Cobros**. Con la fecha de hoy salen los clientes con órdenes sin folio, con total, redondeo y monto a cobrar.
+- [ ] Marcar uno → **Pagado**: queda "Pagado en efectivo" con **Deshacer**. En Sistema Fën → Efectivo → Por recibir aparece "Cobrado por logística".
+- [ ] Deshacer (antes de que Emmanuel lo reciba): la orden vuelve a quedar sin pagar; en Sistema Fën desaparece de Por recibir al abrir Efectivo.
+
+**Si algo sale mal:** vuelve a subir la v1.3.1 (no tiene Cobros; lo demás igual).
 
 ## Novedades de la v1.3.1 (va con Sistema Fën v0.75.0) · 21 de octubre de 2026
 - **El precio especial de un cliente va por el ID del producto**, no por el nombre (decisión de Emmanuel: unir por ID, nunca por nombre). Si dos productos se llaman parecido, o uno cambia de nombre, cada cliente sigue pagando su precio en el producto correcto. Un precio especial antiguo que todavía no tiene su ID se sigue buscando por el nombre, hasta que Emmanuel lo une en Sistema Fën (Ventas B2B → Clientes → "Unir los precios especiales a su producto").

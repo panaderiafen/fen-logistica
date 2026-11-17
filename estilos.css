@@ -93,3 +93,17 @@ h2 { font-size: 16px; }
 .respuesta .btn-sec { flex: none; }
 /* v1.2.0 · Enviar por WhatsApp */
 .btn-wsp { border-color: #25a35a; color: #1c7a43; }
+
+/* v1.4.0 · Cobros en efectivo */
+.lista-cobros { padding: 4px 16px; }
+.cobro { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--linea); min-height: 44px; }
+.lista-cobros > .cobro:first-child { border-top: 0; }
+.cobro input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--acento); flex: none; }
+.cobro-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cobro-t b { font-size: 15px; }
+.cobro-t small { font-size: 12px; color: var(--suave); line-height: 1.4; }
+.cobro-m { font-size: 16px; white-space: nowrap; }
+.cobro-ok { width: 22px; height: 22px; border-radius: 6px; background: var(--verde); color: var(--verde-t); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex: none; }
+.cobro-der { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.cobro-suma { display: flex; justify-content: space-between; align-items: center; background: var(--acento-suave); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.cobro-suma b { font-size: 16px; }

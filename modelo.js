@@ -126,3 +126,46 @@ export function recetasDeCSV(texto) {
   const iId = col('id_receta'), iNom = col('nombre'), iArea = col('área', 'area'), iCod = col('código_área', 'codigo_area');
   return filas.slice(1).filter(f => f[iId]).map(f => ({ id: (f[iId] || '').trim(), nombre: (f[iNom] || '').trim(), area: ((iArea >= 0 ? f[iArea] : '') || (iCod >= 0 ? f[iCod] : '') || '').trim() }));
 }
+
+// ── v1.4.0 · Cobros en efectivo (pedido por Emmanuel el 17 nov) ──
+// El efectivo se redondea como en la caja (ley de redondeo): a la decena; termina en 1 a 5 baja, en 6 a 9 sube.
+export function redondeoLey(total) {
+  const t = Math.round(Number(total) || 0), r = ((t % 10) + 10) % 10;
+  return r === 0 ? t : r <= 5 ? t - r : t + (10 - r);
+}
+// Una orden que logística puede marcar pagada: sin folio, pendiente, activa
+export const cobrable = o => !!o && !o.folio && (o.estadoPago || 'PENDIENTE') === 'PENDIENTE' && (o.estado || 'activa') === 'activa' && !o.archivada && !o.quitadoEnPlanilla;
+const deEseDia = (o, fecha) => o && o.fecha === fecha && !o.quitadoEnPlanilla && (o.estado || 'activa') === 'activa' && !o.archivada && !o.folio;
+// Los cobros de un día: por cliente, lo pendiente en una fila (con su total y su redondeo), y cada cobro ya hecho en otra.
+// → [{ clave, cliente, clienteId, estado: 'por_cobrar'|'logistica'|'recibido'|'pagado', ordenes, total, efectivo, redondeo, cobroId, hora }]
+export function cobrosDelDia(ordenes, fecha) {
+  const filas = [], porCli = new Map();
+  [...ordenes].filter(o => deEseDia(o, fecha)).sort((a, b) => a.n - b.n).forEach(o => {
+    const cli = o.clienteId || clave(o.cliente);
+    if (cobrable(o)) { const k = 'p:' + cli; if (!porCli.has(k)) porCli.set(k, { clave: k, cliente: o.cliente, clienteId: o.clienteId || '', estado: 'por_cobrar', ordenes: [] }); porCli.get(k).ordenes.push(o); return; }
+    const p = o.pagoOrden || {};
+    if (p.logistica && p.cobroId) {
+      const k = 'c:' + p.cobroId;
+      if (!porCli.has(k)) porCli.set(k, { clave: k, cliente: o.cliente, clienteId: o.clienteId || '', estado: p.pendienteAdmin ? 'logistica' : 'recibido', ordenes: [], cobroId: p.cobroId, hora: String(p.en || '').slice(11, 16), efectivo: p.cobroEfectivo, redondeo: p.cobroRedondeo });
+      porCli.get(k).ordenes.push(o); return;
+    }
+    if (/PAGADO/.test(String(o.estadoPago || ''))) { const k = 'o:' + o.n; porCli.set(k, { clave: k, cliente: o.cliente, clienteId: o.clienteId || '', estado: 'pagado', ordenes: [o] }); }
+  });
+  porCli.forEach(f => {
+    f.total = f.ordenes.reduce((s, o) => s + Math.round(Number(o.total) || 0), 0);
+    if (f.efectivo == null) f.efectivo = f.estado === 'pagado' ? f.total : redondeoLey(f.total);
+    if (f.redondeo == null) f.redondeo = f.efectivo - f.total;
+    filas.push(f);
+  });
+  const orden = { por_cobrar: 0, logistica: 1, recibido: 2, pagado: 2 };
+  return filas.sort((a, b) => orden[a.estado] - orden[b.estado] || a.cliente.localeCompare(b.cliente, 'es'));
+}
+// El pago que logística deja en cada orden de un cobro (lo que piden las reglas de fen-b2b v1.9.0)
+export function pagoDeLogistica(o, { cobroId, fecha, correo, en, efectivo, total, ns }) {
+  return {
+    estadoPago: 'PAGADO', fechaPago: fecha, medioPago: 'Efectivo · cobró logística',
+    pagoOrden: { monto: Math.round(Number(o.total) || 0), fecha, medio: 'efectivo', cobro: 'logística', por: correo, en,
+      logistica: true, pendienteAdmin: true, cobroId, cobroEfectivo: efectivo, cobroTotal: total, cobroRedondeo: efectivo - total, cobroNs: ns }
+  };
+}
+export const textoRedondeo = r => (!r ? 'sin redondeo' : `redondeo ${r > 0 ? '+' : '−'}$${Math.abs(r).toLocaleString('es-CL')}`);

@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.3.1 (precio especial por el ID del producto)
+//  fën · Órdenes B2B (logística)  v1.4.0 (Cobros en efectivo: llega a Sistema Fën → Efectivo → Por recibir)
+//  v1.3.1: precio especial por el ID del producto
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
 //  v1.3.0: la copia a la planilla está apagada (ya no se llama al script b2b_planilla); cada línea guarda su foto (catalogoId, tipo,
 //  área, receta o reventa); "Producto nuevo" pide de la lista del Catálogo de Sistema Fën (config/catalogoDisponible), con su catalogoId.
@@ -7,9 +8,9 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.3.1';
-import * as M from './modelo.js?v=1.3.1';
-import * as Pdf from './pdf.js?v=1.3.1';
+} from './firebase.js?v=1.4.0';
+import * as M from './modelo.js?v=1.4.0';
+import * as Pdf from './pdf.js?v=1.4.0';
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -22,7 +23,7 @@ const diaCorto = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || ''); retu
 const E = {
   user: null, rol: null, cfg: { activa: false, scriptUrl: '' },
   clientes: [], productos: [], ordenes: new Map(), solicitudes: [], disponible: null,
-  escuchas: [], form: null, filtro: '', soloSinFolio: false, sinc: { corriendo: false, error: '', ultima: 0 }
+  escuchas: [], form: null, cobros: { fecha: '', sel: new Set(), guardando: false }, filtro: '', soloSinFolio: false, sinc: { corriendo: false, error: '', ultima: 0 }
 };
 
 function avisar(texto, mal) {
@@ -93,7 +94,7 @@ function escuchar() {
   const desde = M.hoy(new Date(Date.now() - F.DIAS_LISTA * 864e5));
   const juntar = clave => sn => {
     sn.docChanges().forEach(c => { if (c.type === 'removed') { const o = E.ordenes.get(c.doc.id); if (o && o._de === clave) E.ordenes.delete(c.doc.id); } else E.ordenes.set(c.doc.id, { id: c.doc.id, _de: clave, ...c.doc.data() }); });
-    refrescar('ordenes'); pintarEstadoPlanilla();
+    refrescar('ordenes'); refrescar('cobros'); pintarEstadoPlanilla();
   };
   E.escuchas.push(onSnapshot(query(collection(db, 'ordenes'), where('fecha', '>=', desde)), juntar('recientes'), err));
   E.escuchas.push(onSnapshot(query(collection(db, 'ordenes'), where('sinFolio', '==', true)), juntar('sinFolio'), err));
@@ -140,7 +141,7 @@ function pintarEstadoPlanilla() {
 function pasarAPlanilla() { /* v1.3.0: apagada (ya no se llama al script b2b_planilla) */ }
 
 // ── Navegación ─────────────────────────────────────
-const VISTAS = ['nueva', 'ordenes', 'solicitudes'];
+const VISTAS = ['nueva', 'ordenes', 'cobros', 'solicitudes'];
 const vistaDesdeHash = () => { const v = (location.hash || '').replace('#', ''); return VISTAS.includes(v) ? v : 'nueva'; };
 window.addEventListener('hashchange', () => { if (E.user) irA(vistaDesdeHash()); });
 function irA(v) {
@@ -148,6 +149,7 @@ function irA(v) {
   document.querySelectorAll('.barra-inf a').forEach(a => { if (a.dataset.vista === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   if (v === 'nueva') pintarNueva();
   if (v === 'ordenes') pintarOrdenes();
+  if (v === 'cobros') pintarCobros();
   if (v === 'solicitudes') pintarSolicitudes();
 }
 
@@ -293,6 +295,69 @@ function editar(o) {
     }) };
   location.hash = '#nueva';
   if (vistaDesdeHash() === 'nueva') pintarNueva();
+}
+
+// ── v1.4.0 · Cobros en efectivo: marcar los clientes que pagaron; llega a Sistema Fën → Efectivo → Por recibir ──
+function pintarCobros() {
+  const C = E.cobros; if (!C.fecha) C.fecha = M.hoy();
+  if (C.guardando) return;
+  const filas = M.cobrosDelDia(E.ordenes.values(), C.fecha);
+  [...C.sel].forEach(k => { if (!filas.some(f => f.clave === k && f.estado === 'por_cobrar')) C.sel.delete(k); });
+  const elegidas = filas.filter(f => C.sel.has(f.clave)), suma = elegidas.reduce((s, f) => s + f.efectivo, 0);
+  const nOrd = f => `${f.ordenes.length} ${f.ordenes.length === 1 ? 'orden' : 'órdenes'} · N° ${f.ordenes.map(o => o.n).join(', ')}`;
+  const fila = f => f.estado === 'por_cobrar'
+    ? `<label class="cobro"><input type="checkbox" data-cobro="${esc(f.clave)}" ${C.sel.has(f.clave) ? 'checked' : ''}><span class="cobro-t"><b>${esc(f.cliente)}</b><small>${nOrd(f)} · total ${pesos(f.total)} · ${M.textoRedondeo(f.redondeo)}</small></span><b class="cobro-m">${pesos(f.efectivo)}</b></label>`
+    : `<div class="cobro cobro-listo"><span class="cobro-ok" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></span><span class="cobro-t"><b>${esc(f.cliente)}</b><small class="ok-texto">${f.estado === 'logistica' ? `Pagado en efectivo${f.hora ? ' · ' + esc(f.hora) : ''}${f.redondeo ? ' · total ' + pesos(f.total) + ', ' + M.textoRedondeo(f.redondeo) : ''}` : f.estado === 'recibido' ? 'Pagado · ya recibido por Emmanuel' : 'Pagado (anotado en Sistema Fën)'}</small></span>
+        <span class="cobro-der"><b class="cobro-m">${pesos(f.efectivo)}</b>${f.estado === 'logistica' ? `<button type="button" class="btn-sec btn-chico" data-deshacer="${esc(f.cobroId)}">Deshacer</button>` : ''}</span></div>`;
+  $('v-cobros').innerHTML = `<h1 id="t-cobros">Cobros en efectivo</h1>
+    <div class="campo"><label for="c-fecha">Fecha de las órdenes</label><input id="c-fecha" type="date" value="${esc(C.fecha)}" max="${M.hoy()}"></div>
+    <p class="ayuda">Marque los clientes que le pagaron en efectivo. El monto a cobrar ya viene redondeado a la decena, como en la caja. Solo aparecen las órdenes sin folio.</p>
+    <div class="tarjeta lista-cobros">${filas.length ? filas.map(fila).join('') : `<div class="vacio">No hay órdenes sin folio del ${diaCorto(C.fecha)}.</div>`}</div>
+    ${elegidas.length ? `<div class="cobro-suma"><span>Marcados: ${elegidas.length} ${elegidas.length === 1 ? 'cliente' : 'clientes'}</span><b>${pesos(suma)}</b></div>` : ''}
+    <button type="button" class="btn btn-ancho" id="c-pagado" ${elegidas.length && E.cfg.activa ? '' : 'disabled'}>Pagado${elegidas.length ? ' (' + pesos(suma) + ')' : ''}</button>
+    <p class="ayuda">Al presionar Pagado, las órdenes quedan pagadas y el efectivo le llega a Emmanuel para recibirlo. "Deshacer" sirve si se marcó por error, mientras Emmanuel no lo haya recibido.</p>`;
+  $('c-fecha').addEventListener('change', e => { C.fecha = e.target.value && e.target.value <= M.hoy() ? e.target.value : M.hoy(); C.sel.clear(); pintarCobros(); });
+  document.querySelectorAll('[data-cobro]').forEach(x => x.addEventListener('change', () => { if (x.checked) C.sel.add(x.dataset.cobro); else C.sel.delete(x.dataset.cobro); pintarCobros(); }));
+  const bp = $('c-pagado'); if (bp) bp.addEventListener('click', () => marcarPagados(elegidas, bp));
+  document.querySelectorAll('[data-deshacer]').forEach(b => b.addEventListener('click', () => deshacerCobro(b.dataset.deshacer, b)));
+}
+// Cada cliente marcado = un cobro: sus órdenes pendientes quedan pagadas en una sola transacción
+async function marcarPagados(lista, b) {
+  if (!lista.length) return;
+  const C = E.cobros, total = lista.reduce((s, f) => s + f.efectivo, 0);
+  if (!confirm(`¿Marcar como pagados en efectivo?\n\n${lista.map(f => `${f.cliente}: ${pesos(f.efectivo)}`).join('\n')}\n\nTotal ${pesos(total)}`)) return;
+  b.disabled = true; b.textContent = 'Guardando…'; C.guardando = true;
+  let ok = 0; const fallas = [];
+  for (const f of lista) {
+    const cobroId = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), ns = f.ordenes.map(o => o.n), en = M.ahoraTexto();
+    try {
+      await runTransaction(db, async tx => {
+        const refs = f.ordenes.map(o => doc(db, 'ordenes', String(o.n))), sns = [];
+        for (const r of refs) sns.push(await tx.get(r));
+        sns.forEach(sn => { if (!sn.exists() || !M.cobrable(sn.data())) throw new Error(`La orden N° ${sn.id} cambió (ya tiene pago, folio o se anuló). Revise la lista.`); });
+        sns.forEach((sn, i) => tx.update(refs[i], M.pagoDeLogistica(sn.data(), { cobroId, fecha: M.hoy(), correo: E.user.email, en, efectivo: f.efectivo, total: f.total, ns })));
+      });
+      ok++; C.sel.delete(f.clave);
+    } catch (e) { fallas.push(`${f.cliente}: ${mensajeError(e)}`); }
+  }
+  C.guardando = false;
+  if (ok) avisar(`Listo: ${ok} ${ok === 1 ? 'cliente pagado' : 'clientes pagados'}. Le llega a Emmanuel en Efectivo → Por recibir.`);
+  if (fallas.length) avisar(fallas.join(' · '), true);
+  pintarCobros();
+}
+async function deshacerCobro(cobroId, b) {
+  const ords = [...E.ordenes.values()].filter(o => o.pagoOrden && o.pagoOrden.cobroId === cobroId);
+  if (!ords.length || !confirm(`¿Deshacer el cobro de ${ords[0].cliente}? Las órdenes vuelven a quedar sin pagar.`)) return;
+  b.disabled = true;
+  try {
+    await runTransaction(db, async tx => {
+      const refs = ords.map(o => doc(db, 'ordenes', String(o.n))), sns = [];
+      for (const r of refs) sns.push(await tx.get(r));
+      sns.forEach(sn => { const p = sn.exists() && sn.data().pagoOrden; if (!p || p.cobroId !== cobroId || !p.pendienteAdmin) throw new Error('Emmanuel ya lo recibió: ya no se puede deshacer aquí. Avísele.'); });
+      refs.forEach(r => tx.update(r, { estadoPago: 'PENDIENTE', fechaPago: null, medioPago: null, pagoOrden: null }));
+    });
+    avisar('Cobro deshecho: las órdenes quedan sin pagar.');
+  } catch (e) { b.disabled = false; avisar(mensajeError(e), true); }
 }
 
 // ── Órdenes ────────────────────────────────────────
