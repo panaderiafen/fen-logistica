@@ -169,3 +169,46 @@ export function pagoDeLogistica(o, { cobroId, fecha, correo, en, efectivo, total
   };
 }
 export const textoRedondeo = r => (!r ? 'sin redondeo' : `redondeo ${r > 0 ? '+' : '−'}$${Math.abs(r).toLocaleString('es-CL')}`);
+
+// ── v1.5.0 · Gastos con la plata de los cobros y el sobre del día (aprobado por Emmanuel el 25 nov, boceto "Etiquetas de sobres") ──
+export const QUE_GASTO = { estacionamiento: 'Estacionamiento', compra: 'Compra chica', bencina: 'Bencina', otro: 'Otro' };
+export const GASTO_MAX = 200000;
+const limpio = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+export const leerMonto = v => { const t = String(v ?? '').replace(/[^\d]/g, ''); return t ? Number(t) : NaN; };
+// El gasto que se guarda en fen-b2b (gastos_logistica). Lanza un error con el texto para la persona si algo falta.
+export function armarGasto({ monto, que, detalle, boleta, fecha, correo, en }) {
+  const m = leerMonto(monto);
+  if (!(m > 0)) throw new Error('Escriba el monto del gasto.');
+  if (m > GASTO_MAX) throw new Error(`Un gasto de más de $${GASTO_MAX.toLocaleString('es-CL')} no se anota aquí: avísele a Emmanuel.`);
+  if (!QUE_GASTO[que]) throw new Error('Elija en qué se gastó.');
+  const d = limpio(detalle, 120);
+  if (que === 'otro' && d.length < 2) throw new Error('Escriba en qué se gastó.');
+  if (boleta !== true && boleta !== false) throw new Error('Diga si le dieron boleta.');
+  return { monto: m, que, detalle: d, boleta, fecha, por: correo, en, pendienteAdmin: true };
+}
+export const textoGasto = g => (g.detalle ? `${g.que === 'otro' ? '' : QUE_GASTO[g.que] + ': '}${g.detalle}` : QUE_GASTO[g.que] || 'Gasto');
+// Los cobros que hizo logística un día (por la fecha del pago, no la de la orden), uno por cliente
+export function cobrosPagadosEl(ordenes, dia) {
+  const g = new Map();
+  [...ordenes].forEach(o => {
+    const p = o && o.pagoOrden;
+    if (!p || !p.logistica || !p.cobroId || p.fecha !== dia || o.estado === 'anulada') return;
+    if (!g.has(p.cobroId)) g.set(p.cobroId, { cobroId: p.cobroId, cliente: o.cliente || '', efectivo: Math.round(Number(p.cobroEfectivo) || 0) });
+  });
+  return [...g.values()];
+}
+// El sobre del día: lo cobrado menos los gastos vigentes → { cobrado, nClientes, gastos, nGastos, conBoleta, entrega }
+export function sobreDelDia(cobros, gastos) {
+  const vivos = (gastos || []).filter(x => x && !x.anulado);
+  const cobrado = (cobros || []).reduce((s, c) => s + c.efectivo, 0), g = vivos.reduce((s, x) => s + Math.round(Number(x.monto) || 0), 0);
+  return { cobrado, nClientes: (cobros || []).length, gastos: g, nGastos: vivos.length, conBoleta: vivos.filter(x => x.boleta).length, entrega: cobrado - g };
+}
+// Lo que va en la etiqueta de 80 × 50 mm (etiqueta.js)
+const DIAS_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+export const fechaEtiqueta = dia => { const [y, m, d] = String(dia || '').split('-').map(Number); return y ? `${DIAS_C[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}` : ''; };
+export function etiquetaSobre(s, dia, quien) {
+  const p = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+  const filas = [[`Cobrado (${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'})`, p(s.cobrado)]];
+  if (s.nGastos) filas.push([`Gastos (${s.nGastos}${s.conBoleta ? `, ${s.conBoleta} con boleta` : ', sin boleta'})`, '−' + p(s.gastos)]);
+  return { titulo: 'SOBRE · LOGÍSTICA', sub: fechaEtiqueta(dia), filas, total: ['ENTREGA', p(s.entrega)], pie: [`Cobró: ${String(quien || '').slice(0, 40)}`, 'Recibió: ___________'] };
+}

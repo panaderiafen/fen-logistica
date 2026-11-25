@@ -107,3 +107,26 @@ h2 { font-size: 16px; }
 .cobro-der { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .cobro-suma { display: flex; justify-content: space-between; align-items: center; background: var(--acento-suave); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
 .cobro-suma b { font-size: 16px; }
+
+/* v1.5.0 · Sobre de hoy: gastos con la plata de los cobros y etiqueta */
+.sub-sobre { font-size: 17px; margin-top: 10px; }
+.gastos-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0 4px; border-top: 1px solid var(--linea); }
+.gastos-cab .btn-sec { min-height: 44px; border-color: var(--acento); color: var(--acento); }
+.gasto { display: flex; gap: 12px; align-items: center; padding: 10px 0; min-height: 44px; }
+.sobre .ayuda { padding: 4px 0 10px; }
+.entrega { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 6px -8px 10px; padding: 12px; border-radius: 12px; background: var(--acento-suave); border: 1.5px solid var(--acento); }
+.entrega span { display: flex; flex-direction: column; gap: 2px; }
+.entrega small { font-size: 12px; color: var(--texto); }
+.entrega > b { font-size: 22px; white-space: nowrap; }
+.btn-link { border: 0; background: none; padding: 0; color: var(--acento); font-weight: 700; text-decoration: underline; cursor: pointer; font-size: inherit; }
+dialog.dialogo { border: 0; border-radius: 18px; padding: 0; width: min(440px, calc(100vw - 24px)); background: var(--tarjeta); color: var(--texto); }
+dialog.dialogo::backdrop { background: rgba(37, 48, 42, .45); }
+.form-gasto { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
+.form-gasto h2 { font-size: 19px; }
+.opciones { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.opciones legend { font-size: 13px; font-weight: 700; padding: 0; margin-bottom: 6px; }
+.opcion { display: flex; gap: 8px; align-items: center; min-height: 44px; padding: 8px 10px; border: 1.5px solid var(--borde); border-radius: 12px; background: #fff; font-size: 14px; cursor: pointer; }
+.opcion:has(input:checked) { border-color: var(--acento); background: var(--acento-suave); font-weight: 700; }
+.opcion input { accent-color: var(--acento); width: 18px; height: 18px; margin: 0; }
+.form-gasto .botones .btn { flex: 2 1 0; }
+.form-gasto .botones .btn-sec { flex: 1 1 0; min-height: 48px; }

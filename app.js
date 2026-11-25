@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.4.0 (Cobros en efectivo: llega a Sistema Fën → Efectivo → Por recibir)
+//  fën · Órdenes B2B (logística)  v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
+//  v1.4.0: Cobros en efectivo: llega a Sistema Fën → Efectivo → Por recibir
 //  v1.3.1: precio especial por el ID del producto
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
 //  v1.3.0: la copia a la planilla está apagada (ya no se llama al script b2b_planilla); cada línea guarda su foto (catalogoId, tipo,
@@ -8,9 +9,10 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.4.0';
-import * as M from './modelo.js?v=1.4.0';
-import * as Pdf from './pdf.js?v=1.4.0';
+} from './firebase.js?v=1.5.0';
+import * as M from './modelo.js?v=1.5.0';
+import * as Pdf from './pdf.js?v=1.5.0';
+import * as Et from './etiqueta.js?v=1.5.0';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -23,7 +25,7 @@ const diaCorto = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || ''); retu
 const E = {
   user: null, rol: null, cfg: { activa: false, scriptUrl: '' },
   clientes: [], productos: [], ordenes: new Map(), solicitudes: [], disponible: null,
-  escuchas: [], form: null, cobros: { fecha: '', sel: new Set(), guardando: false }, filtro: '', soloSinFolio: false, sinc: { corriendo: false, error: '', ultima: 0 }
+  gastos: [], escuchas: [], form: null, cobros: { fecha: '', sel: new Set(), guardando: false }, filtro: '', soloSinFolio: false, sinc: { corriendo: false, error: '', ultima: 0 }
 };
 
 function avisar(texto, mal) {
@@ -69,10 +71,11 @@ onAuthStateChanged(auth, async u => {
   mostrar('app');
   pintarAvisoModo();
   irA(vistaDesdeHash());
+  Et.prepararLogo('logo-etiqueta.png?v=1.5.0');   // v1.5.0: para que la etiqueta salga al tiro al tocar
 });
 
 // ── Datos en vivo ──────────────────────────────────
-function cerrarEscuchas() { E.escuchas.forEach(f => { try { f(); } catch (e) {} }); E.escuchas = []; E.ordenes = new Map(); }
+function cerrarEscuchas() { E.escuchas.forEach(f => { try { f(); } catch (e) {} }); E.escuchas = []; E.ordenes = new Map(); E.gastos = []; }
 function escuchar() {
   const err = e => avisar(mensajeError(e), true);
   // Si Emmanuel activa (o vuelve atrás) la base nueva, la app se entera al tiro
@@ -98,6 +101,11 @@ function escuchar() {
   };
   E.escuchas.push(onSnapshot(query(collection(db, 'ordenes'), where('fecha', '>=', desde)), juntar('recientes'), err));
   E.escuchas.push(onSnapshot(query(collection(db, 'ordenes'), where('sinFolio', '==', true)), juntar('sinFolio'), err));
+  // v1.5.0 · Sus gastos con la plata de los cobros (gastos_logistica, solo los suyos)
+  E.escuchas.push(onSnapshot(query(collection(db, 'gastos_logistica'), where('por', '==', E.user.email)), sn => {
+    E.gastos = sn.docs.map(d => ({ id: d.id, ...d.data() }));
+    refrescar('cobros');
+  }, err));
   E.escuchas.push(onSnapshot(query(collection(db, 'solicitudes'), where('por', '==', E.user.email)), sn => {
     E.solicitudes = sn.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => ((b.en && b.en.toMillis && b.en.toMillis()) || 0) - ((a.en && a.en.toMillis && a.en.toMillis()) || 0));
     refrescar('solicitudes'); if (vistaDesdeHash() === 'ordenes') pintarOrdenes();
@@ -136,7 +144,7 @@ function pintarRespuestas() {
 // ── Copia a la planilla: APAGADA desde la v1.3.0 (Sistema Fën v0.73.0 apagó las copias en vivo; la planilla queda como historial) ──
 function pintarEstadoPlanilla() {
   const el = $('estado-planilla');
-  if (el) el.textContent = 'Copia a la planilla apagada';
+  if (el) el.textContent = 'v' + F.VERSION;   // v1.5.0: la versión a la vista (la copia a la planilla sigue apagada)
 }
 function pasarAPlanilla() { /* v1.3.0: apagada (ya no se llama al script b2b_planilla) */ }
 
@@ -315,11 +323,96 @@ function pintarCobros() {
     <div class="tarjeta lista-cobros">${filas.length ? filas.map(fila).join('') : `<div class="vacio">No hay órdenes sin folio del ${diaCorto(C.fecha)}.</div>`}</div>
     ${elegidas.length ? `<div class="cobro-suma"><span>Marcados: ${elegidas.length} ${elegidas.length === 1 ? 'cliente' : 'clientes'}</span><b>${pesos(suma)}</b></div>` : ''}
     <button type="button" class="btn btn-ancho" id="c-pagado" ${elegidas.length && E.cfg.activa ? '' : 'disabled'}>Pagado${elegidas.length ? ' (' + pesos(suma) + ')' : ''}</button>
-    <p class="ayuda">Al presionar Pagado, las órdenes quedan pagadas y el efectivo le llega a Emmanuel para recibirlo. "Deshacer" sirve si se marcó por error, mientras Emmanuel no lo haya recibido.</p>`;
+    <p class="ayuda">Al presionar Pagado, las órdenes quedan pagadas y el efectivo le llega a Emmanuel para recibirlo. "Deshacer" sirve si se marcó por error, mientras Emmanuel no lo haya recibido.</p>
+    ${htmlSobre()}`;
   $('c-fecha').addEventListener('change', e => { C.fecha = e.target.value && e.target.value <= M.hoy() ? e.target.value : M.hoy(); C.sel.clear(); pintarCobros(); });
   document.querySelectorAll('[data-cobro]').forEach(x => x.addEventListener('change', () => { if (x.checked) C.sel.add(x.dataset.cobro); else C.sel.delete(x.dataset.cobro); pintarCobros(); }));
   const bp = $('c-pagado'); if (bp) bp.addEventListener('click', () => marcarPagados(elegidas, bp));
   document.querySelectorAll('[data-deshacer]').forEach(b => b.addEventListener('click', () => deshacerCobro(b.dataset.deshacer, b)));
+  conectarSobre();
+}
+
+// ── v1.5.0 · El sobre de hoy: lo cobrado hoy, los gastos hechos con esa plata y lo que se entrega; la etiqueta de 80 × 50 mm ──
+const quienSoy = () => { const c = String((E.user && E.user.email) || '').split('@')[0].replace(/[._+-]+/g, ' ').trim(); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ''; };
+function sobreHoy() {
+  const dia = M.hoy(), cobros = M.cobrosPagadosEl(E.ordenes.values(), dia);
+  const gastos = E.gastos.filter(g => g.fecha === dia && !g.anulado).sort((a, b) => String(a.en || '').localeCompare(String(b.en || '')));
+  return { dia, cobros, gastos, s: M.sobreDelDia(cobros, gastos) };
+}
+function htmlSobre() {
+  const { dia, gastos, s } = sobreHoy();
+  const fila = g => `<div class="gasto"><span class="cobro-t"><b>${esc(M.textoGasto(g))}</b><small>${g.boleta ? 'con boleta (va en el sobre)' : 'sin boleta'}${g.pendienteAdmin ? '' : ' · ya recibido por Emmanuel'}</small></span>
+      <span class="cobro-der"><b class="cobro-m">−${pesos(g.monto)}</b>${g.pendienteAdmin ? `<button type="button" class="btn-sec btn-chico" data-quitar-gasto="${esc(g.id)}">Quitar</button>` : ''}</span></div>`;
+  return `<h2 class="sub-sobre" id="t-sobre">Sobre de hoy · ${esc(diaCorto(dia))}</h2>
+    <div class="tarjeta lista-cobros sobre" aria-labelledby="t-sobre">
+      <div class="cobro"><span class="cobro-t"><b>Cobrado hoy</b><small>${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'}</small></span><b class="cobro-m">${pesos(s.cobrado)}</b></div>
+      <div class="gastos-cab"><b>Gastos con esta plata</b><button type="button" class="btn-sec" id="g-nuevo" ${E.cfg.activa ? '' : 'disabled'}>+ Gasto</button></div>
+      ${gastos.length ? gastos.map(fila).join('') : '<p class="ayuda">Sin gastos hoy. Si pagó estacionamiento o una compra chica con la plata de los cobros, anótelo con "+ Gasto".</p>'}
+      <div class="entrega"><span><b>Entrega en el sobre</b><small>${pesos(s.cobrado)}${s.gastos ? ' − ' + pesos(s.gastos) : ''}</small></span><b>${pesos(s.entrega)}</b></div>
+    </div>
+    <button type="button" class="btn btn-ancho" id="s-etiqueta" ${s.nClientes || s.nGastos ? '' : 'disabled'}>Imprimir etiqueta del sobre</button>
+    <p class="ayuda">Imprime directo en la impresora de etiquetas por Bluetooth: la primera vez del día, elija "BlueTooth Printer" en la lista (y cierre la app Print Label si está abierta). Si no imprime, <button type="button" class="btn-link" id="s-etiqueta-img">compártala con Print Label</button>. Si le dieron boleta, póngala dentro del sobre.</p>`;
+}
+function conectarSobre() {
+  const datos = () => { const { dia, s } = sobreHoy(); return { d: M.etiquetaSobre(s, dia, quienSoy()), nombre: `sobre-logistica-${dia}` }; };
+  // Directo por Bluetooth (Chrome en Android); si el equipo no puede, Compartir
+  const b = $('s-etiqueta');
+  if (b) b.addEventListener('click', () => {
+    const { d, nombre } = datos();
+    if (!Et.puedeDirecto()) { Et.compartir(d, nombre).then(r => { if (r === 'descargada') avisar('La etiqueta quedó en Descargas: ábrala con la app Print Label.'); }); return; }
+    b.disabled = true; b.textContent = 'Imprimiendo…';
+    Et.imprimirDirecto(d).then(() => avisar('Etiqueta impresa.'), e => avisar(e.message, true))
+      .finally(() => { b.disabled = false; b.textContent = 'Imprimir etiqueta del sobre'; });
+  });
+  const bi = $('s-etiqueta-img');
+  if (bi) bi.addEventListener('click', () => { const { d, nombre } = datos(); Et.compartir(d, nombre, { como: 'png' }).then(r => { if (r === 'descargada') avisar('La etiqueta quedó en Descargas: ábrala con la app Print Label.'); }); });
+  const n = $('g-nuevo'); if (n) n.addEventListener('click', dialogoGasto);
+  document.querySelectorAll('[data-quitar-gasto]').forEach(x => x.addEventListener('click', () => quitarGasto(x.dataset.quitarGasto, x)));
+}
+function dialogoGasto() {
+  const d = document.createElement('dialog');
+  d.className = 'dialogo'; d.setAttribute('aria-labelledby', 'g-tit');
+  d.innerHTML = `<form method="dialog" class="form-gasto" novalidate>
+    <h2 id="g-tit">Gasto con la plata de los cobros</h2>
+    <div class="campo"><label for="g-monto">Monto</label><input id="g-monto" inputmode="numeric" autocomplete="off" placeholder="$"></div>
+    <fieldset class="opciones"><legend>¿En qué?</legend>
+      ${Object.entries(M.QUE_GASTO).map(([k, t], i) => `<label class="opcion"><input type="radio" name="g-que" value="${k}" ${i === 0 ? 'checked' : ''}>${esc(t)}</label>`).join('')}</fieldset>
+    <div class="campo"><label for="g-det">Detalle <span id="g-det-opc">(opcional)</span></label><input id="g-det" maxlength="120" placeholder="Por ejemplo: bolsas, cinta, hielo"></div>
+    <fieldset class="opciones"><legend>¿Le dieron boleta?</legend>
+      <label class="opcion"><input type="radio" name="g-bol" value="si">Sí, va en el sobre</label>
+      <label class="opcion"><input type="radio" name="g-bol" value="no">No</label></fieldset>
+    <div class="error" id="g-err" role="alert"></div>
+    <div class="botones"><button type="button" class="btn-sec" id="g-no">Cancelar</button><button type="submit" class="btn" id="g-si">Guardar gasto</button></div>
+  </form>`;
+  document.body.appendChild(d);
+  const cerrar = () => { d.close(); d.remove(); };
+  d.addEventListener('cancel', ev => { ev.preventDefault(); cerrar(); });
+  d.querySelector('#g-no').onclick = cerrar;
+  const opc = () => { d.querySelector('#g-det-opc').textContent = d.querySelector('[name="g-que"]:checked').value === 'otro' ? '(obligatorio)' : '(opcional)'; };
+  d.querySelectorAll('[name="g-que"]').forEach(r => r.addEventListener('change', opc));
+  d.querySelector('#g-monto').addEventListener('input', ev => { const n = M.leerMonto(ev.target.value); ev.target.value = n > 0 ? '$' + n.toLocaleString('es-CL') : ''; });
+  d.querySelector('form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const err = d.querySelector('#g-err'), b = d.querySelector('#g-si'); err.textContent = '';
+    const bol = d.querySelector('[name="g-bol"]:checked');
+    let g;
+    try { g = M.armarGasto({ monto: d.querySelector('#g-monto').value, que: d.querySelector('[name="g-que"]:checked').value, detalle: d.querySelector('#g-det').value, boleta: bol ? bol.value === 'si' : null, fecha: M.hoy(), correo: E.user.email, en: M.ahoraTexto() }); }
+    catch (e) { err.textContent = e.message; return; }
+    b.disabled = true; b.textContent = 'Guardando…';
+    try {
+      await addDoc(collection(db, 'gastos_logistica'), { ...g, creado: serverTimestamp() });
+      cerrar(); avisar(`Gasto anotado: ${M.textoGasto(g)} ${pesos(g.monto)}.`);
+    } catch (e) { err.textContent = mensajeError(e); b.disabled = false; b.textContent = 'Guardar gasto'; }
+  });
+  d.showModal();
+  setTimeout(() => d.querySelector('#g-monto').focus(), 0);
+}
+async function quitarGasto(id, b) {
+  const g = E.gastos.find(x => x.id === id);
+  if (!g || !confirm(`¿Quitar el gasto "${M.textoGasto(g)}" de ${pesos(g.monto)}?`)) return;
+  b.disabled = true;
+  try { await updateDoc(doc(db, 'gastos_logistica', id), { anulado: true, pendienteAdmin: false, anuladoEn: serverTimestamp() }); avisar('Gasto quitado.'); }
+  catch (e) { b.disabled = false; avisar(/permission/.test((e && e.code) || '') ? 'Emmanuel ya lo recibió: ya no se puede quitar aquí. Avísele.' : mensajeError(e), true); }
 }
 // Cada cliente marcado = un cobro: sus órdenes pendientes quedan pagadas en una sola transacción
 async function marcarPagados(lista, b) {
