@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════
-//  fën · Etiqueta de 80 × 50 mm para la impresora térmica (90-IV-Printer, TSPL, Bluetooth)  v1.1.0
+//  fën · Etiqueta de 80 × 50 mm para la impresora térmica (90-IV-Printer, TSPL, Bluetooth)  v1.2.0
+//  v1.2.0: hasta 5 filas (el sobre de logística lista cada cliente con su folio u orden)
 //  v1.1.0: imprime DIRECTO por Bluetooth desde Chrome en Android (sin la app), con imprimirDirecto(); probado por Emmanuel el 25 nov
 //          con la página de prueba en la tablet de Ainavillo. Compartir (PDF o imagen a Print Label) queda para el iPhone y el Mac.
 //  El mismo archivo va en la caja, en logística y en Sistema Fën.
@@ -53,17 +54,19 @@ export function dibujar(d) {
     (d.filas || []).slice(0, 1).forEach(([a]) => { ajustar(x, a, 700, 27, AN); x.fillText(a, M, y + 40); y += 40; });
     const t = ajustar(x, d.grande, 800, 86, AN); x.fillText(d.grande, M, y + 16 + t);
   } else {
-    // Filas con su monto a la derecha y, abajo, el total destacado
-    (d.filas || []).slice(0, 3).forEach(([a, b]) => {
-      y += 38;
-      x.textAlign = 'right'; x.font = `800 26px ${LETRA}`; x.fillText(b || '', ANCHO - M, y);
+    // Filas con su monto a la derecha y, abajo, el total destacado. v1.2.0: hasta 5 filas; con más de 3 la letra se achica.
+    const filas = (d.filas || []).slice(0, 5), n = filas.length, f = n <= 3 ? 26 : n === 4 ? 21 : 18, paso = n <= 3 ? 38 : f + 9;
+    filas.forEach(([a, b]) => {
+      y += paso;
+      x.textAlign = 'right'; x.font = `800 ${f}px ${LETRA}`; x.fillText(b || '', ANCHO - M, y);
       const wb = x.measureText(b || '').width;
-      x.textAlign = 'left'; ajustar(x, a || '', 600, 26, AN - wb - 16); x.fillText(a || '', M, y);
+      x.textAlign = 'left'; ajustar(x, a || '', 600, f, AN - wb - 16); x.fillText(a || '', M, y);
     });
     if (d.total) {
-      y += 14; x.fillRect(M, y, AN, 3);
-      x.textAlign = 'right'; const t = ajustar(x, d.total[1], 800, 64, AN * 0.62); x.fillText(d.total[1], ANCHO - M, y + 8 + t);
-      x.textAlign = 'left'; x.font = `800 32px ${LETRA}`; x.fillText(d.total[0], M, y + 8 + t - Math.round((t - 32) / 2));
+      const tt = n <= 3 ? 64 : 50;
+      y += n <= 3 ? 14 : 10; x.fillRect(M, y, AN, 3);
+      x.textAlign = 'right'; const t = ajustar(x, d.total[1], 800, tt, AN * 0.62); x.fillText(d.total[1], ANCHO - M, y + 8 + t);
+      x.textAlign = 'left'; x.font = `800 ${n <= 3 ? 32 : 28}px ${LETRA}`; x.fillText(d.total[0], M, y + 8 + t - Math.round((t - (n <= 3 ? 32 : 28)) / 2));
     }
   }
   // Pie: quién y firma

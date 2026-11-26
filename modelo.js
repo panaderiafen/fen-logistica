@@ -193,9 +193,17 @@ export function cobrosPagadosEl(ordenes, dia) {
   [...ordenes].forEach(o => {
     const p = o && o.pagoOrden;
     if (!p || !p.logistica || !p.cobroId || p.fecha !== dia || o.estado === 'anulada') return;
-    if (!g.has(p.cobroId)) g.set(p.cobroId, { cobroId: p.cobroId, cliente: o.cliente || '', efectivo: Math.round(Number(p.cobroEfectivo) || 0) });
+    if (!g.has(p.cobroId)) g.set(p.cobroId, { cobroId: p.cobroId, cliente: o.cliente || '', efectivo: Math.round(Number(p.cobroEfectivo) || 0), ns: new Set(), folios: new Set() });
+    const c = g.get(p.cobroId);
+    if (o.n != null) c.ns.add(Number(o.n));
+    if (o.folio) c.folios.add(String(o.folio));
   });
-  return [...g.values()];
+  // v1.5.0 (pedido de Emmanuel al probar la etiqueta): cada cliente con su factura o, si no tiene, su N° de orden
+  return [...g.values()].map(c => {
+    const fol = [...c.folios].sort(), ns = [...c.ns].sort((a, b) => a - b);
+    const ref = fol.length ? `F ${fol.join(', ')}` : ns.length ? `orden ${ns.join(', ')}` : '';
+    return { cobroId: c.cobroId, cliente: c.cliente, efectivo: c.efectivo, ref };
+  });
 }
 // El sobre del día: lo cobrado menos los gastos vigentes → { cobrado, nClientes, gastos, nGastos, conBoleta, entrega }
 export function sobreDelDia(cobros, gastos) {
@@ -206,9 +214,13 @@ export function sobreDelDia(cobros, gastos) {
 // Lo que va en la etiqueta de 80 × 50 mm (etiqueta.js)
 const DIAS_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 export const fechaEtiqueta = dia => { const [y, m, d] = String(dia || '').split('-').map(Number); return y ? `${DIAS_C[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}` : ''; };
-export function etiquetaSobre(s, dia, quien) {
+export function etiquetaSobre(s, dia, quien, cobros = []) {
   const p = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
-  const filas = [[`Cobrado (${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'})`, p(s.cobrado)]];
+  // Un renglón por cliente (con su factura u orden); caben 5 renglones en total contando el de los gastos
+  const cab = s.nGastos ? 4 : 5, cs = [...cobros];
+  const linea = c => [`${String(c.cliente || 'Cliente').slice(0, 28)}${c.ref ? ' · ' + c.ref : ''}`, p(c.efectivo)];
+  let filas = cs.length <= cab ? cs.map(linea) : [...cs.slice(0, cab - 1).map(linea), [`y ${cs.length - cab + 1} clientes más`, p(cs.slice(cab - 1).reduce((a, c) => a + c.efectivo, 0))]];
+  if (!cs.length) filas = [[`Cobrado (${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'})`, p(s.cobrado)]];
   if (s.nGastos) filas.push([`Gastos (${s.nGastos}${s.conBoleta ? `, ${s.conBoleta} con boleta` : ', sin boleta'})`, '−' + p(s.gastos)]);
   return { titulo: 'SOBRE · LOGÍSTICA', sub: fechaEtiqueta(dia), filas, total: ['ENTREGA', p(s.entrega)], pie: [`Cobró: ${String(quien || '').slice(0, 40)}`, 'Recibió: ___________'] };
 }

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
+//  fën · Órdenes B2B (logística)  v1.5.1 (v1.5.1: la etiqueta lista cada cliente con su factura u orden) · v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
 //  v1.4.0: Cobros en efectivo: llega a Sistema Fën → Efectivo → Por recibir
 //  v1.3.1: precio especial por el ID del producto
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
@@ -9,10 +9,10 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.5.0';
-import * as M from './modelo.js?v=1.5.0';
-import * as Pdf from './pdf.js?v=1.5.0';
-import * as Et from './etiqueta.js?v=1.5.0';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
+} from './firebase.js?v=1.5.1';
+import * as M from './modelo.js?v=1.5.1';
+import * as Pdf from './pdf.js?v=1.5.1';
+import * as Et from './etiqueta.js?v=1.5.1';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -71,7 +71,7 @@ onAuthStateChanged(auth, async u => {
   mostrar('app');
   pintarAvisoModo();
   irA(vistaDesdeHash());
-  Et.prepararLogo('logo-etiqueta.png?v=1.5.0');   // v1.5.0: para que la etiqueta salga al tiro al tocar
+  Et.prepararLogo('logo-etiqueta.png?v=1.5.1');   // v1.5.0: para que la etiqueta salga al tiro al tocar
 });
 
 // ── Datos en vivo ──────────────────────────────────
@@ -354,7 +354,7 @@ function htmlSobre() {
     <p class="ayuda">Imprime directo en la impresora de etiquetas por Bluetooth: la primera vez del día, elija "BlueTooth Printer" en la lista (y cierre la app Print Label si está abierta). Si no imprime, <button type="button" class="btn-link" id="s-etiqueta-img">compártala con Print Label</button>. Si le dieron boleta, póngala dentro del sobre.</p>`;
 }
 function conectarSobre() {
-  const datos = () => { const { dia, s } = sobreHoy(); return { d: M.etiquetaSobre(s, dia, quienSoy()), nombre: `sobre-logistica-${dia}` }; };
+  const datos = () => { const { dia, s, cobros } = sobreHoy(); return { d: M.etiquetaSobre(s, dia, quienSoy(), cobros), nombre: `sobre-logistica-${dia}` }; };
   // Directo por Bluetooth (Chrome en Android); si el equipo no puede, Compartir
   const b = $('s-etiqueta');
   if (b) b.addEventListener('click', () => {
