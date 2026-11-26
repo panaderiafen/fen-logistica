@@ -216,11 +216,13 @@ const DIAS_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 export const fechaEtiqueta = dia => { const [y, m, d] = String(dia || '').split('-').map(Number); return y ? `${DIAS_C[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}` : ''; };
 export function etiquetaSobre(s, dia, quien, cobros = []) {
   const p = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
-  // Un renglón por cliente (con su factura u orden); caben 5 renglones en total contando el de los gastos
-  const cab = s.nGastos ? 4 : 5, cs = [...cobros];
+  // Un renglón por cliente (con su factura u orden); caben 5 renglones en total contando el total cobrado y los gastos
+  // v1.5.3 (pedido de Emmanuel): siempre el renglón "Total cobrado", antes de los gastos
+  const cab = s.nGastos ? 3 : 4, cs = [...cobros];
   const linea = c => [`${String(c.cliente || 'Cliente').slice(0, 28)}${c.ref ? ' · ' + c.ref : ''}`, p(c.efectivo)];
   let filas = cs.length <= cab ? cs.map(linea) : [...cs.slice(0, cab - 1).map(linea), [`y ${cs.length - cab + 1} clientes más`, p(cs.slice(cab - 1).reduce((a, c) => a + c.efectivo, 0))]];
-  if (!cs.length) filas = [[`Cobrado (${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'})`, p(s.cobrado)]];
+  filas.push([`Total cobrado (${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'})`, p(s.cobrado), true]);
+  if (!cs.length) filas = [filas[filas.length - 1]];
   if (s.nGastos) filas.push([`Gastos (${s.nGastos}${s.conBoleta ? `, ${s.conBoleta} con boleta` : ', sin boleta'})`, '−' + p(s.gastos)]);
   return { titulo: 'SOBRE · LOGÍSTICA', sub: fechaEtiqueta(dia), filas, total: ['ENTREGA', p(s.entrega)], pie: [`Cobró: ${String(quien || '').slice(0, 40)}`, 'Recibió: ___________'] };
 }

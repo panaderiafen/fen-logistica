@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════
 //  fën · Etiqueta de 80 × 50 mm para la impresora térmica (90-IV-Printer, TSPL, Bluetooth)  v1.2.0
-//  v1.2.0: hasta 5 filas (el sobre de logística lista cada cliente con su folio u orden)
+//  v1.2.0: hasta 5 filas (el sobre de logística lista cada cliente con su folio u orden) · v1.2.1: renglón en negrita
 //  v1.1.0: imprime DIRECTO por Bluetooth desde Chrome en Android (sin la app), con imprimirDirecto(); probado por Emmanuel el 25 nov
 //          con la página de prueba en la tablet de Ainavillo. Compartir (PDF o imagen a Print Label) queda para el iPhone y el Mac.
 //  El mismo archivo va en la caja, en logística y en Sistema Fën.
@@ -56,11 +56,11 @@ export function dibujar(d) {
   } else {
     // Filas con su monto a la derecha y, abajo, el total destacado. v1.2.0: hasta 5 filas; con más de 3 la letra se achica.
     const filas = (d.filas || []).slice(0, 5), n = filas.length, f = n <= 3 ? 26 : n === 4 ? 21 : 18, paso = n <= 3 ? 38 : f + 9;
-    filas.forEach(([a, b]) => {
+    filas.forEach(([a, b, negrita]) => {   // v1.2.1: tercer valor true = renglón en negrita (el total cobrado)
       y += paso;
       x.textAlign = 'right'; x.font = `800 ${f}px ${LETRA}`; x.fillText(b || '', ANCHO - M, y);
       const wb = x.measureText(b || '').width;
-      x.textAlign = 'left'; ajustar(x, a || '', 600, f, AN - wb - 16); x.fillText(a || '', M, y);
+      x.textAlign = 'left'; ajustar(x, a || '', negrita ? 800 : 600, f, AN - wb - 16); x.fillText(a || '', M, y);
     });
     if (d.total) {
       const tt = n <= 3 ? 64 : 50;
