@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.5.1 (v1.5.1: la etiqueta lista cada cliente con su factura u orden) · v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
+//  fën · Órdenes B2B (logística)  v1.5.2 (v1.5.2: cobros, gastos y sobre con el día elegido, no siempre hoy) · v1.5.1 (v1.5.1: la etiqueta lista cada cliente con su factura u orden) · v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
 //  v1.4.0: Cobros en efectivo: llega a Sistema Fën → Efectivo → Por recibir
 //  v1.3.1: precio especial por el ID del producto
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
@@ -9,10 +9,10 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.5.1';
-import * as M from './modelo.js?v=1.5.1';
-import * as Pdf from './pdf.js?v=1.5.1';
-import * as Et from './etiqueta.js?v=1.5.1';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
+} from './firebase.js?v=1.5.2';
+import * as M from './modelo.js?v=1.5.2';
+import * as Pdf from './pdf.js?v=1.5.2';
+import * as Et from './etiqueta.js?v=1.5.2';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -71,7 +71,7 @@ onAuthStateChanged(auth, async u => {
   mostrar('app');
   pintarAvisoModo();
   irA(vistaDesdeHash());
-  Et.prepararLogo('logo-etiqueta.png?v=1.5.1');   // v1.5.0: para que la etiqueta salga al tiro al tocar
+  Et.prepararLogo('logo-etiqueta.png?v=1.5.2');   // v1.5.0: para que la etiqueta salga al tiro al tocar
 });
 
 // ── Datos en vivo ──────────────────────────────────
@@ -318,8 +318,8 @@ function pintarCobros() {
     : `<div class="cobro cobro-listo"><span class="cobro-ok" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></span><span class="cobro-t"><b>${esc(f.cliente)}</b><small class="ok-texto">${f.estado === 'logistica' ? `Pagado en efectivo${f.hora ? ' · ' + esc(f.hora) : ''}${f.redondeo ? ' · total ' + pesos(f.total) + ', ' + M.textoRedondeo(f.redondeo) : ''}` : f.estado === 'recibido' ? 'Pagado · ya recibido por Emmanuel' : 'Pagado (anotado en Sistema Fën)'}</small></span>
         <span class="cobro-der"><b class="cobro-m">${pesos(f.efectivo)}</b>${f.estado === 'logistica' ? `<button type="button" class="btn-sec btn-chico" data-deshacer="${esc(f.cobroId)}">Deshacer</button>` : ''}</span></div>`;
   $('v-cobros').innerHTML = `<h1 id="t-cobros">Cobros en efectivo</h1>
-    <div class="campo"><label for="c-fecha">Fecha de las órdenes</label><input id="c-fecha" type="date" value="${esc(C.fecha)}" max="${M.hoy()}"></div>
-    <p class="ayuda">Marque los clientes que le pagaron en efectivo. El monto a cobrar ya viene redondeado a la decena, como en la caja. Solo aparecen las órdenes sin folio.</p>
+    <div class="campo"><label for="c-fecha">Día del reparto</label><input id="c-fecha" type="date" value="${esc(C.fecha)}" max="${M.hoy()}"></div>
+    <p class="ayuda">Los cobros, los gastos y el sobre quedan con <b>este día</b> (si anota otro día, el sobre sale con esa fecha). Marque los clientes que le pagaron en efectivo. El monto a cobrar ya viene redondeado a la decena, como en la caja. Solo aparecen las órdenes sin folio.</p>
     <div class="tarjeta lista-cobros">${filas.length ? filas.map(fila).join('') : `<div class="vacio">No hay órdenes sin folio del ${diaCorto(C.fecha)}.</div>`}</div>
     ${elegidas.length ? `<div class="cobro-suma"><span>Marcados: ${elegidas.length} ${elegidas.length === 1 ? 'cliente' : 'clientes'}</span><b>${pesos(suma)}</b></div>` : ''}
     <button type="button" class="btn btn-ancho" id="c-pagado" ${elegidas.length && E.cfg.activa ? '' : 'disabled'}>Pagado${elegidas.length ? ' (' + pesos(suma) + ')' : ''}</button>
@@ -335,7 +335,7 @@ function pintarCobros() {
 // ── v1.5.0 · El sobre de hoy: lo cobrado hoy, los gastos hechos con esa plata y lo que se entrega; la etiqueta de 80 × 50 mm ──
 const quienSoy = () => { const c = String((E.user && E.user.email) || '').split('@')[0].replace(/[._+-]+/g, ' ').trim(); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ''; };
 function sobreHoy() {
-  const dia = M.hoy(), cobros = M.cobrosPagadosEl(E.ordenes.values(), dia);
+  const dia = E.cobros.fecha || M.hoy(), cobros = M.cobrosPagadosEl(E.ordenes.values(), dia);   // v1.5.2: el día elegido arriba, no siempre hoy
   const gastos = E.gastos.filter(g => g.fecha === dia && !g.anulado).sort((a, b) => String(a.en || '').localeCompare(String(b.en || '')));
   return { dia, cobros, gastos, s: M.sobreDelDia(cobros, gastos) };
 }
@@ -343,11 +343,12 @@ function htmlSobre() {
   const { dia, gastos, s } = sobreHoy();
   const fila = g => `<div class="gasto"><span class="cobro-t"><b>${esc(M.textoGasto(g))}</b><small>${g.boleta ? 'con boleta (va en el sobre)' : 'sin boleta'}${g.pendienteAdmin ? '' : ' · ya recibido por Emmanuel'}</small></span>
       <span class="cobro-der"><b class="cobro-m">−${pesos(g.monto)}</b>${g.pendienteAdmin ? `<button type="button" class="btn-sec btn-chico" data-quitar-gasto="${esc(g.id)}">Quitar</button>` : ''}</span></div>`;
-  return `<h2 class="sub-sobre" id="t-sobre">Sobre de hoy · ${esc(diaCorto(dia))}</h2>
+  const esHoy = dia === M.hoy();
+  return `<h2 class="sub-sobre" id="t-sobre">${esHoy ? 'Sobre de hoy' : 'Sobre del día'} · ${esc(diaCorto(dia))}</h2>
     <div class="tarjeta lista-cobros sobre" aria-labelledby="t-sobre">
-      <div class="cobro"><span class="cobro-t"><b>Cobrado hoy</b><small>${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'}</small></span><b class="cobro-m">${pesos(s.cobrado)}</b></div>
+      <div class="cobro"><span class="cobro-t"><b>Cobrado ${esHoy ? 'hoy' : 'ese día'}</b><small>${s.nClientes} ${s.nClientes === 1 ? 'cliente' : 'clientes'}</small></span><b class="cobro-m">${pesos(s.cobrado)}</b></div>
       <div class="gastos-cab"><b>Gastos con esta plata</b><button type="button" class="btn-sec" id="g-nuevo" ${E.cfg.activa ? '' : 'disabled'}>+ Gasto</button></div>
-      ${gastos.length ? gastos.map(fila).join('') : '<p class="ayuda">Sin gastos hoy. Si pagó estacionamiento o una compra chica con la plata de los cobros, anótelo con "+ Gasto".</p>'}
+      ${gastos.length ? gastos.map(fila).join('') : `<p class="ayuda">Sin gastos ${esHoy ? 'hoy' : 'ese día'}. Si pagó estacionamiento o una compra chica con la plata de los cobros, anótelo con "+ Gasto".</p>`}
       <div class="entrega"><span><b>Entrega en el sobre</b><small>${pesos(s.cobrado)}${s.gastos ? ' − ' + pesos(s.gastos) : ''}</small></span><b>${pesos(s.entrega)}</b></div>
     </div>
     <button type="button" class="btn btn-ancho" id="s-etiqueta" ${s.nClientes || s.nGastos ? '' : 'disabled'}>Imprimir etiqueta del sobre</button>
@@ -396,7 +397,7 @@ function dialogoGasto() {
     const err = d.querySelector('#g-err'), b = d.querySelector('#g-si'); err.textContent = '';
     const bol = d.querySelector('[name="g-bol"]:checked');
     let g;
-    try { g = M.armarGasto({ monto: d.querySelector('#g-monto').value, que: d.querySelector('[name="g-que"]:checked').value, detalle: d.querySelector('#g-det').value, boleta: bol ? bol.value === 'si' : null, fecha: M.hoy(), correo: E.user.email, en: M.ahoraTexto() }); }
+    try { g = M.armarGasto({ monto: d.querySelector('#g-monto').value, que: d.querySelector('[name="g-que"]:checked').value, detalle: d.querySelector('#g-det').value, boleta: bol ? bol.value === 'si' : null, fecha: E.cobros.fecha || M.hoy(), correo: E.user.email, en: M.ahoraTexto() }); }   // v1.5.2: el día elegido
     catch (e) { err.textContent = e.message; return; }
     b.disabled = true; b.textContent = 'Guardando…';
     try {
@@ -428,7 +429,7 @@ async function marcarPagados(lista, b) {
         const refs = f.ordenes.map(o => doc(db, 'ordenes', String(o.n))), sns = [];
         for (const r of refs) sns.push(await tx.get(r));
         sns.forEach(sn => { if (!sn.exists() || !M.cobrable(sn.data())) throw new Error(`La orden N° ${sn.id} cambió (ya tiene pago, folio o se anuló). Revise la lista.`); });
-        sns.forEach((sn, i) => tx.update(refs[i], M.pagoDeLogistica(sn.data(), { cobroId, fecha: M.hoy(), correo: E.user.email, en, efectivo: f.efectivo, total: f.total, ns })));
+        sns.forEach((sn, i) => tx.update(refs[i], M.pagoDeLogistica(sn.data(), { cobroId, fecha: C.fecha || M.hoy(), correo: E.user.email, en, efectivo: f.efectivo, total: f.total, ns })));
       });
       ok++; C.sel.delete(f.clave);
     } catch (e) { fallas.push(`${f.cliente}: ${mensajeError(e)}`); }
