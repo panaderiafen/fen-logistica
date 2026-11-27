@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════
-//  fën · Órdenes B2B (logística)  v1.5.4 (v1.5.4: Bluetooth más firme, etiqueta.js v1.3.0) · v1.5.3 (v1.5.3: la etiqueta trae el total cobrado) · v1.5.2 (v1.5.2: cobros, gastos y sobre con el día elegido, no siempre hoy) · v1.5.1 (v1.5.1: la etiqueta lista cada cliente con su factura u orden) · v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
+//  fën · Órdenes B2B (logística)  v1.5.5 (v1.5.5: también cobra órdenes ya facturadas) · v1.5.4 (v1.5.4: Bluetooth más firme, etiqueta.js v1.3.0) · v1.5.3 (v1.5.3: la etiqueta trae el total cobrado) · v1.5.2 (v1.5.2: cobros, gastos y sobre con el día elegido, no siempre hoy) · v1.5.1 (v1.5.1: la etiqueta lista cada cliente con su factura u orden) · v1.5.0 (Gastos con la plata de los cobros y etiqueta del sobre de 80 × 50 mm, directo por Bluetooth)
 //  v1.4.0: Cobros en efectivo: llega a Sistema Fën → Efectivo → Por recibir
 //  v1.3.1: precio especial por el ID del producto
 //  Crea y edita órdenes directo en la base nueva (fen-b2b): rápido y en vivo.
@@ -9,10 +9,10 @@
 import {
   auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence,
   collection, doc, getDoc, getDocs, query, where, onSnapshot, runTransaction, addDoc, updateDoc, serverTimestamp
-} from './firebase.js?v=1.5.4';
-import * as M from './modelo.js?v=1.5.4';
-import * as Pdf from './pdf.js?v=1.5.4';
-import * as Et from './etiqueta.js?v=1.5.4';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
+} from './firebase.js?v=1.5.5';
+import * as M from './modelo.js?v=1.5.5';
+import * as Pdf from './pdf.js?v=1.5.5';
+import * as Et from './etiqueta.js?v=1.5.5';   // v1.5.0: etiqueta de 80 × 50 mm del sobre
 
 const F = window.FEN_LOG;
 const $ = id => document.getElementById(id);
@@ -71,7 +71,7 @@ onAuthStateChanged(auth, async u => {
   mostrar('app');
   pintarAvisoModo();
   irA(vistaDesdeHash());
-  Et.prepararLogo('logo-etiqueta.png?v=1.5.4');   // v1.5.0: para que la etiqueta salga al tiro al tocar
+  Et.prepararLogo('logo-etiqueta.png?v=1.5.5');   // v1.5.0: para que la etiqueta salga al tiro al tocar
 });
 
 // ── Datos en vivo ──────────────────────────────────
@@ -312,15 +312,16 @@ function pintarCobros() {
   const filas = M.cobrosDelDia(E.ordenes.values(), C.fecha);
   [...C.sel].forEach(k => { if (!filas.some(f => f.clave === k && f.estado === 'por_cobrar')) C.sel.delete(k); });
   const elegidas = filas.filter(f => C.sel.has(f.clave)), suma = elegidas.reduce((s, f) => s + f.efectivo, 0);
-  const nOrd = f => `${f.ordenes.length} ${f.ordenes.length === 1 ? 'orden' : 'órdenes'} · N° ${f.ordenes.map(o => o.n).join(', ')}`;
+  const folios = f => [...new Set(f.ordenes.map(o => o.folio).filter(Boolean))];   // v1.5.5: las facturadas muestran su folio
+  const nOrd = f => `${f.ordenes.length} ${f.ordenes.length === 1 ? 'orden' : 'órdenes'} · N° ${f.ordenes.map(o => o.n).join(', ')}${folios(f).length ? ' · F ' + folios(f).join(', ') : ''}`;
   const fila = f => f.estado === 'por_cobrar'
     ? `<label class="cobro"><input type="checkbox" data-cobro="${esc(f.clave)}" ${C.sel.has(f.clave) ? 'checked' : ''}><span class="cobro-t"><b>${esc(f.cliente)}</b><small>${nOrd(f)} · total ${pesos(f.total)} · ${M.textoRedondeo(f.redondeo)}</small></span><b class="cobro-m">${pesos(f.efectivo)}</b></label>`
     : `<div class="cobro cobro-listo"><span class="cobro-ok" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></span><span class="cobro-t"><b>${esc(f.cliente)}</b><small class="ok-texto">${f.estado === 'logistica' ? `Pagado en efectivo${f.hora ? ' · ' + esc(f.hora) : ''}${f.redondeo ? ' · total ' + pesos(f.total) + ', ' + M.textoRedondeo(f.redondeo) : ''}` : f.estado === 'recibido' ? 'Pagado · ya recibido por Emmanuel' : 'Pagado (anotado en Sistema Fën)'}</small></span>
         <span class="cobro-der"><b class="cobro-m">${pesos(f.efectivo)}</b>${f.estado === 'logistica' ? `<button type="button" class="btn-sec btn-chico" data-deshacer="${esc(f.cobroId)}">Deshacer</button>` : ''}</span></div>`;
   $('v-cobros').innerHTML = `<h1 id="t-cobros">Cobros en efectivo</h1>
     <div class="campo"><label for="c-fecha">Día del reparto</label><input id="c-fecha" type="date" value="${esc(C.fecha)}" max="${M.hoy()}"></div>
-    <p class="ayuda">Los cobros, los gastos y el sobre quedan con <b>este día</b> (si anota otro día, el sobre sale con esa fecha). Marque los clientes que le pagaron en efectivo. El monto a cobrar ya viene redondeado a la decena, como en la caja. Solo aparecen las órdenes sin folio.</p>
-    <div class="tarjeta lista-cobros">${filas.length ? filas.map(fila).join('') : `<div class="vacio">No hay órdenes sin folio del ${diaCorto(C.fecha)}.</div>`}</div>
+    <p class="ayuda">Los cobros, los gastos y el sobre quedan con <b>este día</b> (si anota otro día, el sobre sale con esa fecha). Marque los clientes que le pagaron en efectivo. El monto a cobrar ya viene redondeado a la decena, como en la caja. Las ya facturadas muestran su folio (F).</p>
+    <div class="tarjeta lista-cobros">${filas.length ? filas.map(fila).join('') : `<div class="vacio">No hay órdenes del ${diaCorto(C.fecha)}.</div>`}</div>
     ${elegidas.length ? `<div class="cobro-suma"><span>Marcados: ${elegidas.length} ${elegidas.length === 1 ? 'cliente' : 'clientes'}</span><b>${pesos(suma)}</b></div>` : ''}
     <button type="button" class="btn btn-ancho" id="c-pagado" ${elegidas.length && E.cfg.activa ? '' : 'disabled'}>Pagado${elegidas.length ? ' (' + pesos(suma) + ')' : ''}</button>
     <p class="ayuda">Al presionar Pagado, las órdenes quedan pagadas y el efectivo le llega a Emmanuel para recibirlo. "Deshacer" sirve si se marcó por error, mientras Emmanuel no lo haya recibido.</p>
@@ -428,7 +429,7 @@ async function marcarPagados(lista, b) {
       await runTransaction(db, async tx => {
         const refs = f.ordenes.map(o => doc(db, 'ordenes', String(o.n))), sns = [];
         for (const r of refs) sns.push(await tx.get(r));
-        sns.forEach(sn => { if (!sn.exists() || !M.cobrable(sn.data())) throw new Error(`La orden N° ${sn.id} cambió (ya tiene pago, folio o se anuló). Revise la lista.`); });
+        sns.forEach(sn => { if (!sn.exists() || !M.cobrable(sn.data())) throw new Error(`La orden N° ${sn.id} cambió (ya tiene pago o se anuló). Revise la lista.`); });
         sns.forEach((sn, i) => tx.update(refs[i], M.pagoDeLogistica(sn.data(), { cobroId, fecha: C.fecha || M.hoy(), correo: E.user.email, en, efectivo: f.efectivo, total: f.total, ns })));
       });
       ok++; C.sel.delete(f.clave);

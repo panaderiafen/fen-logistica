@@ -134,8 +134,9 @@ export function redondeoLey(total) {
   return r === 0 ? t : r <= 5 ? t - r : t + (10 - r);
 }
 // Una orden que logística puede marcar pagada: sin folio, pendiente, activa
-export const cobrable = o => !!o && !o.folio && (o.estadoPago || 'PENDIENTE') === 'PENDIENTE' && (o.estado || 'activa') === 'activa' && !o.archivada && !o.quitadoEnPlanilla;
-const deEseDia = (o, fecha) => o && o.fecha === fecha && !o.quitadoEnPlanilla && (o.estado || 'activa') === 'activa' && !o.archivada && !o.folio;
+// v1.5.5: también las que ya tienen folio (a veces se factura antes de cobrar); Sistema Fën deja el pago como abono del folio
+export const cobrable = o => !!o && (o.estadoPago || 'PENDIENTE') === 'PENDIENTE' && (o.estado || 'activa') === 'activa' && !o.archivada && !o.quitadoEnPlanilla;
+const deEseDia = (o, fecha) => o && o.fecha === fecha && !o.quitadoEnPlanilla && (o.estado || 'activa') === 'activa' && !o.archivada;   // v1.5.5: con folio también
 // Los cobros de un día: por cliente, lo pendiente en una fila (con su total y su redondeo), y cada cobro ya hecho en otra.
 // → [{ clave, cliente, clienteId, estado: 'por_cobrar'|'logistica'|'recibido'|'pagado', ordenes, total, efectivo, redondeo, cobroId, hora }]
 export function cobrosDelDia(ordenes, fecha) {
